@@ -27,11 +27,28 @@ export default function Dashboard() {
     skillLevel: 'all'
   })
 
+  // Helper function to calculate distance between two points
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371 // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLon = (lon2 - lon1) * Math.PI / 180
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+    return R * c
+  }
+
   const loadGames = async () => {
     setLoading(true)
     setError(null)
 
     try {
+      console.log('🔍 DEBUG: ===== STARTING GAME LOAD =====')
+      console.log('🔍 DEBUG: Current filters:', filters)
+      console.log('🔍 DEBUG: User location:', { latitude, longitude })
+
       // Build filter object for API
       const apiFilters: any = {}
       
@@ -39,58 +56,183 @@ export default function Dashboard() {
         apiFilters.latitude = latitude
         apiFilters.longitude = longitude
         apiFilters.maxDistance = filters.distance
+        console.log('🔍 DEBUG: Location filters applied:', apiFilters)
+      } else {
+        console.log('🔍 DEBUG: No user location available - no distance filtering')
       }
 
       // Date filtering
       const today = new Date()
+      const todayString = today.toISOString().split('T')[0]
+      console.log('🔍 DEBUG: Today date:', todayString)
+      
       switch (filters.dateRange) {
         case 'today':
-          apiFilters.dateFrom = today.toISOString().split('T')[0]
-          apiFilters.dateTo = today.toISOString().split('T')[0]
+          apiFilters.dateFrom = todayString
+          apiFilters.dateTo = todayString
+          console.log('🔍 DEBUG: Today filter applied:', apiFilters.dateFrom)
           break
         case 'tomorrow':
           const tomorrow = new Date(today)
           tomorrow.setDate(tomorrow.getDate() + 1)
-          apiFilters.dateFrom = tomorrow.toISOString().split('T')[0]
-          apiFilters.dateTo = tomorrow.toISOString().split('T')[0]
+          const tomorrowString = tomorrow.toISOString().split('T')[0]
+          apiFilters.dateFrom = tomorrowString
+          apiFilters.dateTo = tomorrowString
+          console.log('🔍 DEBUG: Tomorrow filter applied:', apiFilters.dateFrom)
           break
         case 'week':
           const weekFromNow = new Date(today)
           weekFromNow.setDate(weekFromNow.getDate() + 7)
-          apiFilters.dateFrom = today.toISOString().split('T')[0]
-          apiFilters.dateTo = weekFromNow.toISOString().split('T')[0]
+          const weekString = weekFromNow.toISOString().split('T')[0]
+          apiFilters.dateFrom = todayString
+          apiFilters.dateTo = weekString
+          console.log('🔍 DEBUG: Week filter applied:', apiFilters.dateFrom, 'to', apiFilters.dateTo)
           break
+        default:
+          console.log('🔍 DEBUG: No date filter applied (showing all future games)')
       }
 
       if (filters.skillLevel !== 'all') {
         apiFilters.skillLevel = filters.skillLevel
+        console.log('🔍 DEBUG: Skill level filter applied:', apiFilters.skillLevel)
       }
+
+      console.log('🔍 DEBUG: Final API filters being sent:', apiFilters)
 
       const { data, error } = await gameService.getGames(apiFilters)
 
       if (error) {
         setError('Failed to load games. Please try again.')
-        console.error('Error loading games:', error)
-      } else {
-        // Apply frontend filters for sports (since backend doesn't support array filtering yet)
-        let filteredGames = data || []
-        
-        if (filters.sports.length > 0) {
-          filteredGames = filteredGames.filter(game => 
-            filters.sports.includes(game.sport)
-          )
-        }
-
-        setGames(filteredGames)
-
-        // Load user participations for each game
-        if (user && filteredGames.length > 0) {
-          loadUserParticipations(filteredGames)
-        }
+        console.error('❌ Error loading games:', error)
+        return
       }
+
+      console.log('🔍 DEBUG: ===== RAW GAMES FROM DATABASE =====')
+      console.log('🔍 DEBUG: Total games received:', data?.length || 0)
+      
+      if (data && data.length > 0) {
+        data.forEach((game, index) => {
+          console.log(`🔍 DEBUG: Game ${index + 1}:`, {
+            id: game.id,
+            sport: game.sport,
+            title: game.title,
+            location: game.location,
+            date: game.date,
+            time: game.time,
+            coordinates: { lat: game.latitude, lng: game.longitude },
+            players: `${game.currentPlayers}/${game.maxPlayers}`,
+            skillLevel: game.skillLevel,
+            status: game.status,
+            isPrivate: game.isPrivate,
+            organizerId: game.organizerId
+          })
+        })
+      } else {
+        console.log('🔍 DEBUG: No games received from database')
+      }
+
+      // Apply frontend filters for sports (since backend doesn't support array filtering yet)
+      let filteredGames = data || []
+      
+      console.log('🔍 DEBUG: ===== APPLYING FRONTEND FILTERS =====')
+      console.log('🔍 DEBUG: Before any filtering:', filteredGames.length, 'games')
+      
+      // Sports filter
+      if (filters.sports.length > 0) {
+        console.log('🔍 DEBUG: Applying sports filter:', filters.sports)
+        const beforeSportsFilter = filteredGames.length
+        filteredGames = filteredGames.filter(game => {
+          const included = filters.sports.includes(game.sport)
+          console.log(`🔍 DEBUG: Game "${game.sport}" ${included ? 'INCLUDED' : 'EXCLUDED'} by sports filter`)
+          return included
+        })
+        console.log('🔍 DEBUG: After sports filtering:', filteredGames.length, 'games (removed', beforeSportsFilter - filteredGames.length, ')')
+      } else {
+        console.log('🔍 DEBUG: No sports filter applied')
+      }
+
+      // Additional frontend filtering that might be happening
+      console.log('🔍 DEBUG: ===== CHECKING EACH GAME INDIVIDUALLY =====')
+      
+      filteredGames.forEach((game, index) => {
+        console.log(`🔍 DEBUG: ===== GAME ${index + 1} ANALYSIS =====`)
+        console.log(`🔍 DEBUG: Game ID: ${game.id}`)
+        console.log(`🔍 DEBUG: Sport: ${game.sport}`)
+        console.log(`🔍 DEBUG: Location: ${game.location}`)
+        console.log(`🔍 DEBUG: Date: ${game.date}`)
+        console.log(`🔍 DEBUG: Time: ${game.time}`)
+        console.log(`🔍 DEBUG: Status: ${game.status}`)
+        console.log(`🔍 DEBUG: Is Private: ${game.isPrivate}`)
+        console.log(`🔍 DEBUG: Coordinates: ${game.latitude}, ${game.longitude}`)
+        
+        // Check if game is in the future
+        const gameDate = new Date(game.date)
+        const isInFuture = gameDate >= today
+        const daysDifference = Math.ceil((gameDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        console.log(`🔍 DEBUG: Date check:`, {
+          gameDate: gameDate.toISOString().split('T')[0],
+          today: todayString,
+          isInFuture,
+          daysDifference: daysDifference + ' days'
+        })
+
+        // Check time parsing
+        try {
+          const gameDateTime = new Date(`${game.date}T${game.time}`)
+          const isValidDateTime = !isNaN(gameDateTime.getTime())
+          console.log(`🔍 DEBUG: DateTime parsing:`, {
+            combined: `${game.date}T${game.time}`,
+            parsed: gameDateTime.toISOString(),
+            isValid: isValidDateTime
+          })
+        } catch (err) {
+          console.log(`🔍 DEBUG: DateTime parsing ERROR:`, err)
+        }
+
+        // Calculate distance if user location available
+        if (latitude && longitude) {
+          const distance = calculateDistance(
+            latitude, longitude,
+            game.latitude, game.longitude
+          )
+          const withinRadius = distance <= filters.distance
+          console.log(`🔍 DEBUG: Distance check:`, {
+            userLocation: `${latitude}, ${longitude}`,
+            gameLocation: `${game.latitude}, ${game.longitude}`,
+            distance: distance.toFixed(2) + ' km',
+            maxDistance: filters.distance + ' km',
+            withinRadius
+          })
+        } else {
+          console.log(`🔍 DEBUG: No distance check (no user location)`)
+        }
+
+        // Check skill level
+        const skillLevelMatch = filters.skillLevel === 'all' || game.skillLevel === filters.skillLevel || game.skillLevel === 'any'
+        console.log(`🔍 DEBUG: Skill level check:`, {
+          gameSkillLevel: game.skillLevel,
+          filterSkillLevel: filters.skillLevel,
+          matches: skillLevelMatch
+        })
+
+        console.log(`🔍 DEBUG: ===== END GAME ${index + 1} ANALYSIS =====`)
+      })
+
+      console.log('🔍 DEBUG: ===== FINAL RESULTS =====')
+      console.log('🔍 DEBUG: Games being set in state:', filteredGames.length)
+      console.log('🔍 DEBUG: Game IDs:', filteredGames.map(g => g.id))
+
+      setGames(filteredGames)
+
+      // Load user participations for each game
+      if (user && filteredGames.length > 0) {
+        console.log('🔍 DEBUG: Loading user participations for', filteredGames.length, 'games')
+        loadUserParticipations(filteredGames)
+      }
+
     } catch (err) {
       setError('An unexpected error occurred. Please try again.')
-      console.error('Error loading games:', err)
+      console.error('💥 Error loading games:', err)
     } finally {
       setLoading(false)
     }
@@ -98,6 +240,8 @@ export default function Dashboard() {
 
   const loadUserParticipations = async (gamesList: Game[]) => {
     if (!user) return
+
+    console.log('🔍 DEBUG: Loading user participations for', gamesList.length, 'games')
 
     const participations: { [gameId: string]: 'joined' | 'waitlist' } = {}
 
@@ -107,18 +251,25 @@ export default function Dashboard() {
           const { data } = await gameParticipantService.getUserParticipation(game.id, user.id)
           if (data && data.status) {
             participations[game.id] = data.status
+            console.log(`🔍 DEBUG: User participation in game ${game.id}:`, data.status)
+          } else {
+            console.log(`🔍 DEBUG: User not participating in game ${game.id}`)
           }
         } catch (error) {
           // Silently handle errors for individual games
-          console.warn(`Failed to load participation for game ${game.id}:`, error)
+          console.warn(`⚠️ Failed to load participation for game ${game.id}:`, error)
         }
       })
     )
 
+    console.log('🔍 DEBUG: Final user participations:', participations)
     setUserParticipations(participations)
   }
 
   useEffect(() => {
+    console.log('🔍 DEBUG: useEffect triggered - loading games')
+    console.log('🔍 DEBUG: Current filters:', filters)
+    console.log('🔍 DEBUG: User location:', { latitude, longitude })
     loadGames()
   }, [filters, latitude, longitude])
 
@@ -126,27 +277,34 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return
 
+    console.log('🔍 DEBUG: Setting up real-time subscriptions')
+
     // Subscribe to games updates
     const gamesSubscription = gameService.subscribeToGamesUpdates(() => {
+      console.log('🔍 DEBUG: Real-time game update received - reloading games')
       loadGames()
     })
 
     return () => {
+      console.log('🔍 DEBUG: Cleaning up real-time subscriptions')
       gamesSubscription.unsubscribe()
     }
   }, [user, filters, latitude, longitude])
 
   const handleGameClick = (game: Game) => {
+    console.log('🔍 DEBUG: Game clicked:', game.id, game.sport)
     setSelectedGame(game)
     setIsModalOpen(true)
   }
 
   const handleModalClose = () => {
+    console.log('🔍 DEBUG: Modal closed')
     setIsModalOpen(false)
     setSelectedGame(null)
   }
 
   const handleGameUpdate = (updatedGame: Game) => {
+    console.log('🔍 DEBUG: Game updated:', updatedGame.id, 'Players:', updatedGame.currentPlayers)
     setGames(prevGames => 
       prevGames.map(game => 
         game.id === updatedGame.id ? updatedGame : game
@@ -278,6 +436,8 @@ export default function Dashboard() {
     )
   }
 
+  console.log('🔍 DEBUG: Rendering Dashboard with', games.length, 'games')
+
   return (
     <div className="h-screen flex flex-col">
       {/* Header */}
@@ -344,8 +504,8 @@ export default function Dashboard() {
               {games.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-gray-400 mb-4">
-                    <svg className="h-16 w-16 mx-auto\" fill="none\" viewBox="0 0 24 24\" stroke="currentColor">
-                      <path strokeLinecap="round\" strokeLinejoin="round\" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <svg className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No games found</h3>

@@ -35,9 +35,23 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     zoom: 10
   })
 
+  // Debug games prop
+  useEffect(() => {
+    console.log('🗺️ DEBUG: GameMap received games:', games.length)
+    console.log('🗺️ DEBUG: Games data:', games.map(g => ({
+      id: g.id,
+      sport: g.sport,
+      location: g.location,
+      coordinates: { lat: g.latitude, lng: g.longitude },
+      date: g.date,
+      time: g.time
+    })))
+  }, [games])
+
   // Update view when user location is available
   useEffect(() => {
     if (latitude && longitude && mapLoaded) {
+      console.log('🗺️ DEBUG: Updating map view to user location:', { latitude, longitude })
       setViewState(prev => ({
         ...prev,
         longitude,
@@ -58,11 +72,17 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
 
   // Filter games based on current filters
   const filteredGames = useMemo(() => {
-    console.log('🗺️ GameMap: Filtering games, total:', games.length)
+    console.log('🗺️ DEBUG: ===== FILTERING GAMES IN MAP =====')
+    console.log('🗺️ DEBUG: Input games:', games.length)
+    console.log('🗺️ DEBUG: Current filters:', debouncedFilters)
+    console.log('🗺️ DEBUG: User location:', { latitude, longitude })
     
     const filtered = games.filter(game => {
+      console.log(`🗺️ DEBUG: Checking game ${game.id} (${game.sport})`)
+      
       // Sport filter
       if (debouncedFilters.sports.length > 0 && !debouncedFilters.sports.includes(game.sport)) {
+        console.log(`🗺️ DEBUG: Game ${game.id} EXCLUDED by sport filter`)
         return false
       }
 
@@ -72,9 +92,13 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
           latitude, longitude,
           game.latitude, game.longitude
         )
+        console.log(`🗺️ DEBUG: Game ${game.id} distance: ${distance.toFixed(2)}km (max: ${debouncedFilters.distance}km)`)
         if (distance > debouncedFilters.distance) {
+          console.log(`🗺️ DEBUG: Game ${game.id} EXCLUDED by distance filter`)
           return false
         }
+      } else {
+        console.log(`🗺️ DEBUG: Game ${game.id} - no distance filter (no user location)`)
       }
 
       // Date filter
@@ -85,46 +109,75 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
       const weekFromNow = new Date(today)
       weekFromNow.setDate(weekFromNow.getDate() + 7)
 
+      console.log(`🗺️ DEBUG: Game ${game.id} date check:`, {
+        gameDate: gameDate.toISOString().split('T')[0],
+        today: today.toISOString().split('T')[0],
+        filter: debouncedFilters.dateRange
+      })
+
       switch (debouncedFilters.dateRange) {
         case 'today':
-          if (gameDate.toDateString() !== today.toDateString()) return false
+          if (gameDate.toDateString() !== today.toDateString()) {
+            console.log(`🗺️ DEBUG: Game ${game.id} EXCLUDED by today filter`)
+            return false
+          }
           break
         case 'tomorrow':
-          if (gameDate.toDateString() !== tomorrow.toDateString()) return false
+          if (gameDate.toDateString() !== tomorrow.toDateString()) {
+            console.log(`🗺️ DEBUG: Game ${game.id} EXCLUDED by tomorrow filter`)
+            return false
+          }
           break
         case 'week':
-          if (gameDate > weekFromNow) return false
+          if (gameDate > weekFromNow) {
+            console.log(`🗺️ DEBUG: Game ${game.id} EXCLUDED by week filter`)
+            return false
+          }
           break
+        default:
+          console.log(`🗺️ DEBUG: Game ${game.id} - no date filter applied`)
       }
 
       // Skill level filter
       if (debouncedFilters.skillLevel !== 'all' && game.skillLevel !== debouncedFilters.skillLevel) {
+        console.log(`🗺️ DEBUG: Game ${game.id} EXCLUDED by skill level filter`)
         return false
       }
 
+      console.log(`🗺️ DEBUG: Game ${game.id} INCLUDED in filtered results`)
       return true
     })
 
-    console.log('🗺️ GameMap: Filtered games:', filtered.length)
+    console.log('🗺️ DEBUG: Filtered games result:', filtered.length)
+    console.log('🗺️ DEBUG: Filtered game IDs:', filtered.map(g => g.id))
     
     // Limit to 20 games for performance
-    return filtered.slice(0, 20)
+    const limited = filtered.slice(0, 20)
+    if (limited.length < filtered.length) {
+      console.log('🗺️ DEBUG: Limited to first 20 games for performance')
+    }
+    
+    return limited
   }, [games, debouncedFilters, latitude, longitude])
 
   const handleCenterOnUser = useCallback(() => {
     if (latitude && longitude && mapRef.current) {
+      console.log('🗺️ DEBUG: Centering map on user location')
       mapRef.current.flyTo({
         center: [longitude, latitude],
         zoom: 15,
         duration: 1000
       })
     } else {
+      console.log('🗺️ DEBUG: Requesting user location')
       requestLocation()
     }
   }, [latitude, longitude, requestLocation])
 
   const handleSearch = async () => {
     if (!searchQuery.trim() || !MAPBOX_TOKEN) return
+
+    console.log('🗺️ DEBUG: Searching for location:', searchQuery)
 
     try {
       const response = await fetch(
@@ -134,6 +187,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
 
       if (data.features && data.features.length > 0) {
         const [lng, lat] = data.features[0].center
+        console.log('🗺️ DEBUG: Search result:', { lat, lng })
         setViewState(prev => ({
           ...prev,
           longitude: lng,
@@ -144,13 +198,13 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
         alert('Location not found. Please try a different search term.')
       }
     } catch (error) {
-      console.error('Error searching location:', error)
+      console.error('🗺️ DEBUG: Error searching location:', error)
       alert('Error searching for location. Please try again.')
     }
   }
 
   const handleMarkerClick = useCallback((game: Game) => {
-    console.log('🗺️ GameMap: Marker clicked for game:', game.id)
+    console.log('🗺️ DEBUG: Marker clicked for game:', game.id)
     setPopupInfo({
       game,
       longitude: game.longitude,
@@ -159,7 +213,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   }, [])
 
   const handlePopupClose = useCallback(() => {
-    console.log('🗺️ GameMap: Popup closed')
+    console.log('🗺️ DEBUG: Popup closed')
     setPopupInfo(null)
   }, [])
 
@@ -178,6 +232,8 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
 
   // Simple marker grouping for nearby games
   const groupedGames = useMemo(() => {
+    console.log('🗺️ DEBUG: Grouping games for markers, input:', filteredGames.length)
+    
     const groups: { [key: string]: Game[] } = {}
     const threshold = 0.001 // ~100 meters
 
@@ -189,7 +245,10 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
       groups[key].push(game)
     })
 
-    return Object.values(groups)
+    const result = Object.values(groups)
+    console.log('🗺️ DEBUG: Grouped into', result.length, 'marker groups')
+    
+    return result
   }, [filteredGames])
 
   // Show error state
@@ -232,6 +291,8 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     )
   }
 
+  console.log('🗺️ DEBUG: Rendering map with', groupedGames.length, 'marker groups')
+
   return (
     <div className={`relative ${className}`} style={{ height: '100%', width: '100%' }}>
       {/* Location Error */}
@@ -273,9 +334,12 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
         mapboxAccessToken={MAPBOX_TOKEN}
         style={{ width: '100%', height: '100%' }}
         mapStyle="mapbox://styles/mapbox/light-v11"
-        onLoad={() => setMapLoaded(true)}
+        onLoad={() => {
+          console.log('🗺️ DEBUG: Map loaded successfully')
+          setMapLoaded(true)
+        }}
         onError={(error) => {
-          console.error('Mapbox error:', error)
+          console.error('🗺️ DEBUG: Mapbox error:', error)
           setMapError('Failed to load map. Please check your internet connection.')
         }}
         attributionControl={false}
@@ -302,6 +366,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
         {/* Game Markers */}
         {groupedGames.map((gameGroup, index) => {
           const primaryGame = gameGroup[0]
+          console.log(`🗺️ DEBUG: Rendering marker group ${index + 1} with ${gameGroup.length} games at`, primaryGame.latitude, primaryGame.longitude)
           return (
             <GameMarker
               key={`group-${index}`}

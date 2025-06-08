@@ -94,7 +94,8 @@ export const gameService = {
     dateTo?: string
     skillLevel?: string
   }): Promise<{ data: Game[] | null; error: any }> {
-    console.log('📊 Loading games with filters:', filters)
+    console.log('📊 DEBUG: ===== GAME SERVICE GET GAMES =====')
+    console.log('📊 DEBUG: Filters received:', filters)
     
     let query = supabase
       .from('games')
@@ -103,27 +104,42 @@ export const gameService = {
         organizer:profiles!organizer_id(name)
       `)
       .eq('status', 'active')
-      .gte('date', new Date().toISOString().split('T')[0]) // Only future games
-      .order('date', { ascending: true })
-      .order('time', { ascending: true })
+
+    console.log('📊 DEBUG: Base query: status = active')
+
+    // Only filter by future dates if no specific date filters are provided
+    if (!filters?.dateFrom && !filters?.dateTo) {
+      const today = new Date().toISOString().split('T')[0]
+      query = query.gte('date', today)
+      console.log('📊 DEBUG: Added future date filter:', today)
+    }
 
     // Apply filters
     if (filters?.sport) {
       query = query.eq('sport', filters.sport)
+      console.log('📊 DEBUG: Added sport filter:', filters.sport)
     }
 
     if (filters?.skillLevel && filters.skillLevel !== 'any' && filters.skillLevel !== 'all') {
       query = query.in('skill_level', [filters.skillLevel, 'any'])
+      console.log('📊 DEBUG: Added skill level filter:', filters.skillLevel)
     }
 
     if (filters?.dateFrom) {
       query = query.gte('date', filters.dateFrom)
+      console.log('📊 DEBUG: Added dateFrom filter:', filters.dateFrom)
     }
 
     if (filters?.dateTo) {
       query = query.lte('date', filters.dateTo)
+      console.log('📊 DEBUG: Added dateTo filter:', filters.dateTo)
     }
 
+    // Add ordering
+    query = query.order('date', { ascending: true }).order('time', { ascending: true })
+    console.log('📊 DEBUG: Added ordering by date and time')
+
+    console.log('📊 DEBUG: Executing query...')
     const { data, error } = await query
 
     if (error) {
@@ -131,7 +147,32 @@ export const gameService = {
       return { data: null, error }
     }
 
-    console.log('✅ Loaded games:', data?.length || 0)
+    console.log('📊 DEBUG: ===== RAW DATABASE RESULTS =====')
+    console.log('📊 DEBUG: Total games from database:', data?.length || 0)
+    
+    if (data && data.length > 0) {
+      console.log('📊 DEBUG: Raw game data from database:')
+      data.forEach((game, index) => {
+        console.log(`📊 DEBUG: DB Game ${index + 1}:`, {
+          id: game.id,
+          sport: game.sport,
+          title: game.title,
+          location: game.location,
+          date: game.date,
+          time: game.time,
+          coordinates: { lat: game.latitude, lng: game.longitude },
+          max_players: game.max_players,
+          current_players: game.current_players,
+          skill_level: game.skill_level,
+          status: game.status,
+          is_private: game.is_private,
+          organizer_id: game.organizer_id,
+          organizer_name: game.organizer?.name
+        })
+      })
+    } else {
+      console.log('📊 DEBUG: No games returned from database')
+    }
 
     // Transform the data to match our Game interface (camelCase)
     const transformedData: Game[] = data?.map(game => ({
@@ -155,8 +196,36 @@ export const gameService = {
       updatedAt: game.updated_at
     })) || []
 
+    console.log('📊 DEBUG: ===== TRANSFORMED RESULTS =====')
+    console.log('📊 DEBUG: Transformed games count:', transformedData.length)
+    console.log('📊 DEBUG: Transformed game data:')
+    transformedData.forEach((game, index) => {
+      console.log(`📊 DEBUG: Transformed Game ${index + 1}:`, {
+        id: game.id,
+        sport: game.sport,
+        title: game.title,
+        location: game.location,
+        date: game.date,
+        time: game.time,
+        coordinates: { lat: game.latitude, lng: game.longitude },
+        maxPlayers: game.maxPlayers,
+        currentPlayers: game.currentPlayers,
+        skillLevel: game.skillLevel,
+        status: game.status,
+        isPrivate: game.isPrivate,
+        organizerId: game.organizerId,
+        organizerName: game.organizerName
+      })
+    })
+
     // Apply distance filter if coordinates provided
     if (filters?.latitude && filters?.longitude && filters?.maxDistance) {
+      console.log('📊 DEBUG: Applying distance filter:', {
+        userLat: filters.latitude,
+        userLng: filters.longitude,
+        maxDistance: filters.maxDistance
+      })
+      
       const filteredByDistance = transformedData.filter(game => {
         const distance = calculateDistance(
           filters.latitude!,
@@ -164,11 +233,17 @@ export const gameService = {
           game.latitude,
           game.longitude
         )
-        return distance <= filters.maxDistance!
+        const withinDistance = distance <= filters.maxDistance!
+        console.log(`📊 DEBUG: Game ${game.id} distance: ${distance.toFixed(2)}km, within ${filters.maxDistance}km: ${withinDistance}`)
+        return withinDistance
       })
+      
+      console.log('📊 DEBUG: After distance filtering:', filteredByDistance.length, 'games')
       return { data: filteredByDistance, error: null }
     }
 
+    console.log('📊 DEBUG: No distance filtering applied')
+    console.log('📊 DEBUG: Final result count:', transformedData.length)
     return { data: transformedData, error: null }
   },
 
