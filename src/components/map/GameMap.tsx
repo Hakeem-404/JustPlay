@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, Circle } from 'react-leaflet'
 import { Icon } from 'leaflet'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, RefreshCw } from 'lucide-react'
 import { Game, MapFilters } from '../../types/game'
 import { useGeolocation } from '../../hooks/useGeolocation'
 import GameMarker from './GameMarker'
@@ -30,6 +30,8 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   const [mapRef, setMapRef] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [mapLoaded, setMapLoaded] = useState(false)
+  const [mapError, setMapError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
   const [filters, setFilters] = useState<MapFilters>({
     sports: [],
     distance: 10,
@@ -43,22 +45,37 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     ? [latitude, longitude] 
     : defaultCenter
 
+  // Debounced filter changes
+  const [debouncedFilters, setDebouncedFilters] = useState(filters)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters(filters)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [filters])
+
   // Handle map ready event
   useEffect(() => {
     if (mapRef) {
-      // Force map to invalidate size after container is ready
-      setTimeout(() => {
-        mapRef.invalidateSize()
-        setMapLoaded(true)
+      const timer = setTimeout(() => {
+        try {
+          mapRef.invalidateSize()
+          setMapLoaded(true)
+          setMapError(null)
+        } catch (error) {
+          console.error('Map initialization error:', error)
+          setMapError('Failed to initialize map')
+        }
       }, 100)
+      return () => clearTimeout(timer)
     }
   }, [mapRef])
 
-  // Filter games based on current filters
+  // Filter games based on current filters (limit to 20 for performance)
   const filteredGames = useMemo(() => {
-    return games.filter(game => {
+    const filtered = games.filter(game => {
       // Sport filter
-      if (filters.sports.length > 0 && !filters.sports.includes(game.sport)) {
+      if (debouncedFilters.sports.length > 0 && !debouncedFilters.sports.includes(game.sport)) {
         return false
       }
 
@@ -68,7 +85,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
           latitude, longitude,
           game.latitude, game.longitude
         )
-        if (distance > filters.distance) {
+        if (distance > debouncedFilters.distance) {
           return false
         }
       }
@@ -81,7 +98,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
       const weekFromNow = new Date(today)
       weekFromNow.setDate(weekFromNow.getDate() + 7)
 
-      switch (filters.dateRange) {
+      switch (debouncedFilters.dateRange) {
         case 'today':
           if (gameDate.toDateString() !== today.toDateString()) return false
           break
@@ -94,13 +111,16 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
       }
 
       // Skill level filter
-      if (filters.skillLevel !== 'all' && game.skillLevel !== filters.skillLevel) {
+      if (debouncedFilters.skillLevel !== 'all' && game.skillLevel !== debouncedFilters.skillLevel) {
         return false
       }
 
       return true
     })
-  }, [games, filters, latitude, longitude])
+
+    // Limit to 20 games for performance
+    return filtered.slice(0, 20)
+  }, [games, debouncedFilters, latitude, longitude])
 
   const handleCenterOnUser = () => {
     if (latitude && longitude && mapRef) {
@@ -133,6 +153,12 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     }
   }
 
+  const handleRetry = () => {
+    setMapError(null)
+    setMapLoaded(false)
+    setRetryCount(prev => prev + 1)
+  }
+
   // Calculate distance between two points in kilometers
   function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371 // Earth's radius in kilometers
@@ -162,6 +188,26 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     return Object.values(groups)
   }, [filteredGames])
 
+  // Show error state
+  if (mapError) {
+    return (
+      <div className={`relative ${className} flex items-center justify-center bg-gray-100`}>
+        <div className="text-center p-8">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Map Failed to Load</h3>
+          <p className="text-gray-600 mb-4">{mapError}</p>
+          <button
+            onClick={handleRetry}
+            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2 mx-auto"
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span>Retry</span>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={`relative ${className}`} style={{ height: '100%', width: '100%' }}>
       {/* Location Error */}
@@ -183,12 +229,14 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
         onSearch={handleSearch}
       />
 
-      {/* Loading Overlay */}
+      {/* Loading Overlay with Skeleton */}
       {!mapLoaded && (
         <div className="absolute inset-0 bg-gray-100 flex items-center justify-center z-[999]">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+            <div className="w-16 h-16 bg-gray-200 rounded-lg mb-4 map-loading"></div>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
             <p className="text-gray-600 text-sm">Loading map...</p>
+            <p className="text-gray-500 text-xs mt-1">This may take a moment</p>
           </div>
         </div>
       )}
@@ -196,21 +244,32 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
       {/* Map Container */}
       <div style={{ height: '100%', width: '100%' }}>
         <MapContainer
+          key={retryCount} // Force remount on retry
           center={mapCenter}
-          zoom={13}
+          zoom={10} // Reduced initial zoom for faster loading
+          maxZoom={18} // Limit max zoom
           style={{ height: '100%', width: '100%' }}
           zoomControl={false}
           ref={setMapRef}
           whenReady={() => {
-            setTimeout(() => setMapLoaded(true), 500)
+            setTimeout(() => {
+              setMapLoaded(true)
+              setMapError(null)
+            }, 200)
+          }}
+          onError={() => {
+            setMapError('Map tiles failed to load')
+            setMapLoaded(false)
           }}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            maxZoom={19}
+            attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+            maxZoom={18}
             tileSize={256}
             zoomOffset={0}
+            subdomains="abcd"
+            errorTileUrl="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
           />
 
           {/* User Location */}
@@ -250,6 +309,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
       <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-sm px-3 py-2 z-[1000]">
         <span className="text-sm text-gray-600">
           {filteredGames.length} game{filteredGames.length !== 1 ? 's' : ''} found
+          {filteredGames.length === 20 && games.length > 20 && ' (showing first 20)'}
         </span>
       </div>
     </div>

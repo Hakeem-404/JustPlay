@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
 import { Icon } from 'leaflet'
-import { MapPin, Search, Check, X } from 'lucide-react'
+import { MapPin, Search, Check, X, AlertCircle, RefreshCw } from 'lucide-react'
 
 interface LocationPickerProps {
   onLocationSelect: (location: { latitude: number; longitude: number; address: string }) => void
@@ -44,6 +44,8 @@ export default function LocationPicker({ onLocationSelect, onCancel, initialLoca
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const [mapLoaded, setMapLoaded] = useState(false)
+  const [mapError, setMapError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
 
   const defaultCenter = initialLocation 
     ? [initialLocation.latitude, initialLocation.longitude] as [number, number]
@@ -118,6 +120,12 @@ export default function LocationPicker({ onLocationSelect, onCancel, initialLoca
     }
   }
 
+  const handleRetry = () => {
+    setMapError(null)
+    setMapLoaded(false)
+    setRetryCount(prev => prev + 1)
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl h-[80vh] flex flex-col">
@@ -166,39 +174,63 @@ export default function LocationPicker({ onLocationSelect, onCancel, initialLoca
 
         {/* Map */}
         <div className="flex-1 relative" style={{ height: '100%' }}>
-          {!mapLoaded && (
-            <div className="absolute inset-0 bg-gray-100 flex items-center justify-center z-[999]">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                <p className="text-gray-600 text-sm">Loading map...</p>
+          {mapError ? (
+            <div className="absolute inset-0 bg-gray-100 flex items-center justify-center">
+              <div className="text-center p-8">
+                <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Map Failed to Load</h3>
+                <p className="text-gray-600 mb-4">{mapError}</p>
+                <button
+                  onClick={handleRetry}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2 mx-auto"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  <span>Retry</span>
+                </button>
               </div>
             </div>
+          ) : (
+            <>
+              {!mapLoaded && (
+                <div className="absolute inset-0 bg-gray-100 flex items-center justify-center z-[999]">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gray-200 rounded-lg mb-4 map-loading"></div>
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-gray-600 text-sm">Loading map...</p>
+                  </div>
+                </div>
+              )}
+              
+              <MapContainer
+                key={retryCount}
+                center={defaultCenter}
+                zoom={13}
+                style={{ height: '100%', width: '100%' }}
+                zoomControl={true}
+                whenReady={() => setMapLoaded(true)}
+                onError={() => setMapError('Map tiles failed to load')}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
+                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+                  maxZoom={19}
+                  tileSize={256}
+                  zoomOffset={0}
+                  subdomains="abcd"
+                  errorTileUrl="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+                />
+                
+                <MapClickHandler onLocationClick={handleMapClick} />
+                
+                {selectedLocation && mapLoaded && (
+                  <Marker
+                    position={[selectedLocation.latitude, selectedLocation.longitude]}
+                    icon={selectedLocationIcon}
+                  />
+                )}
+              </MapContainer>
+            </>
           )}
-          
-          <MapContainer
-            center={defaultCenter}
-            zoom={13}
-            style={{ height: '100%', width: '100%' }}
-            zoomControl={true}
-            whenReady={() => setMapLoaded(true)}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              maxZoom={19}
-              tileSize={256}
-              zoomOffset={0}
-            />
-            
-            <MapClickHandler onLocationClick={handleMapClick} />
-            
-            {selectedLocation && mapLoaded && (
-              <Marker
-                position={[selectedLocation.latitude, selectedLocation.longitude]}
-                icon={selectedLocationIcon}
-              />
-            )}
-          </MapContainer>
         </div>
 
         {/* Selected Location Info */}

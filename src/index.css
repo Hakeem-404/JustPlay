@@ -5,7 +5,7 @@
 /* Leaflet CSS imports - must be imported first */
 @import 'leaflet/dist/leaflet.css';
 
-/* Fix for Leaflet tile display issues */
+/* Critical fixes for map performance and display */
 .leaflet-container {
   height: 100% !important;
   width: 100% !important;
@@ -13,13 +13,22 @@
   background: #f8fafc;
 }
 
-/* Ensure tiles load properly */
+/* Prevent tile fragmentation and improve loading */
 .leaflet-tile-pane {
   filter: none !important;
 }
 
 .leaflet-tile {
   max-width: none !important;
+  image-rendering: auto !important;
+  image-rendering: crisp-edges !important;
+  image-rendering: -webkit-optimize-contrast !important;
+}
+
+/* Improve tile loading performance */
+.leaflet-tile-container {
+  animation: none !important;
+  will-change: auto !important;
 }
 
 /* Fix for broken tile display */
@@ -28,6 +37,18 @@
 .leaflet-control-zoom-out,
 .leaflet-control {
   filter: inherit !important;
+}
+
+/* Loading skeleton for map */
+.map-loading {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* Popup styling */
@@ -83,33 +104,25 @@
   font-size: 10px !important;
 }
 
-/* Fix for map container sizing issues */
-.leaflet-container .leaflet-control-attribution {
-  margin: 0 !important;
+/* Error state styling */
+.map-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
 }
 
-/* Ensure proper map rendering */
-.leaflet-fade-anim .leaflet-tile {
-  will-change: auto !important;
+/* Retry button styling */
+.map-retry-btn {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 8px;
 }
 
-/* Fix for mobile touch issues */
-.leaflet-container a {
-  color: #0078A8;
-}
-
-.leaflet-container a.leaflet-active {
-  outline: 2px solid orange;
-}
-
-/* Loading state for tiles */
-.leaflet-tile-container {
-  animation: none !important;
-}
-
-/* Fix for retina displays */
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-  .leaflet-container {
-    background-size: contain;
-  }
+.map-retry-btn:hover {
+  background: #b91c1c;
 }
