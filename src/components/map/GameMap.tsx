@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, Circle } from 'react-leaflet'
-import MarkerClusterGroup from 'react-leaflet-markercluster'
 import { Icon } from 'leaflet'
-import { MapPin, AlertCircle } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import { Game, MapFilters } from '../../types/game'
 import { useGeolocation } from '../../hooks/useGeolocation'
 import GameMarker from './GameMarker'
@@ -135,6 +134,22 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     return R * c
   }
 
+  // Simple marker grouping for nearby games (instead of clustering library)
+  const groupedGames = useMemo(() => {
+    const groups: { [key: string]: Game[] } = {}
+    const threshold = 0.001 // ~100 meters
+
+    filteredGames.forEach(game => {
+      const key = `${Math.round(game.latitude / threshold)}_${Math.round(game.longitude / threshold)}`
+      if (!groups[key]) {
+        groups[key] = []
+      }
+      groups[key].push(game)
+    })
+
+    return Object.values(groups)
+  }, [filteredGames])
+
   return (
     <div className={`relative ${className}`}>
       {/* Location Error */}
@@ -186,22 +201,19 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
           </>
         )}
 
-        {/* Game Markers with Clustering */}
-        <MarkerClusterGroup
-          chunkedLoading
-          maxClusterRadius={50}
-          spiderfyOnMaxZoom={true}
-          showCoverageOnHover={false}
-          zoomToBoundsOnClick={true}
-        >
-          {filteredGames.map((game) => (
+        {/* Game Markers */}
+        {groupedGames.map((gameGroup, index) => {
+          // For groups with multiple games, show the first one with a count indicator
+          const primaryGame = gameGroup[0]
+          return (
             <GameMarker
-              key={game.id}
-              game={game}
+              key={`group-${index}`}
+              game={primaryGame}
               onGameClick={onGameClick}
+              gameCount={gameGroup.length}
             />
-          ))}
-        </MarkerClusterGroup>
+          )
+        })}
       </MapContainer>
 
       {/* Results Counter */}

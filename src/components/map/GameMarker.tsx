@@ -1,12 +1,13 @@
 import React from 'react'
 import { Marker, Popup } from 'react-leaflet'
-import { Icon, DivIcon } from 'leaflet'
+import { DivIcon } from 'leaflet'
 import { MapPin, Users, Clock, Target, Calendar } from 'lucide-react'
 import { Game } from '../../types/game'
 
 interface GameMarkerProps {
   game: Game
   onGameClick: (game: Game) => void
+  gameCount?: number
 }
 
 // Sport-specific marker colors
@@ -37,7 +38,7 @@ const SPORT_ICONS: { [key: string]: string } = {
   'Running': '🏃'
 }
 
-export default function GameMarker({ game, onGameClick }: GameMarkerProps) {
+export default function GameMarker({ game, onGameClick, gameCount = 1 }: GameMarkerProps) {
   const color = SPORT_COLORS[game.sport] || '#6b7280'
   const sportIcon = SPORT_ICONS[game.sport] || '🏃'
 
@@ -56,8 +57,27 @@ export default function GameMarker({ game, onGameClick }: GameMarkerProps) {
         justify-content: center;
         font-size: 18px;
         transform: rotate(-45deg);
+        position: relative;
       ">
         <span style="transform: rotate(45deg);">${sportIcon}</span>
+        ${gameCount > 1 ? `
+          <div style="
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: #ef4444;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            transform: rotate(45deg);
+          ">${gameCount}</div>
+        ` : ''}
       </div>
     `,
     className: 'custom-game-marker',
@@ -111,6 +131,11 @@ export default function GameMarker({ game, onGameClick }: GameMarkerProps) {
             <div>
               <h3 className="font-bold text-lg text-gray-900 mb-1">
                 {game.sport}
+                {gameCount > 1 && (
+                  <span className="ml-2 text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                    +{gameCount - 1} more
+                  </span>
+                )}
               </h3>
               <p className="text-sm text-gray-600 flex items-center">
                 <MapPin className="h-3 w-3 mr-1" />
@@ -162,7 +187,7 @@ export default function GameMarker({ game, onGameClick }: GameMarkerProps) {
             }`}
             disabled={spotsLeft === 0}
           >
-            {spotsLeft > 0 ? 'Join Game' : 'Game Full'}
+            {spotsLeft > 0 ? 'View Details' : 'Game Full'}
           </button>
         </div>
       </Popup>

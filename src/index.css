@@ -4,7 +4,6 @@
 
 /* Leaflet CSS imports */
 @import 'leaflet/dist/leaflet.css';
-@import 'react-leaflet-markercluster/dist/styles.min.css';
 
 /* Custom map styles */
 .leaflet-container {
@@ -40,27 +39,8 @@
   border-color: #2563eb !important;
 }
 
-/* Custom marker cluster styles */
-.marker-cluster-small {
-  background-color: rgba(37, 99, 235, 0.6);
-}
-
-.marker-cluster-small div {
-  background-color: rgba(37, 99, 235, 0.8);
-}
-
-.marker-cluster-medium {
-  background-color: rgba(16, 185, 129, 0.6);
-}
-
-.marker-cluster-medium div {
-  background-color: rgba(16, 185, 129, 0.8);
-}
-
-.marker-cluster-large {
-  background-color: rgba(239, 68, 68, 0.6);
-}
-
-.marker-cluster-large div {
-  background-color: rgba(239, 68, 68, 0.8);
+/* Custom marker styles */
+.custom-game-marker {
+  background: transparent !important;
+  border: none !important;
 }
