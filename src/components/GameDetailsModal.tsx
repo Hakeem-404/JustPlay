@@ -42,16 +42,19 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
   const { user } = useAuth()
   const [participants, setParticipants] = useState<Participant[]>([])
   const [userParticipation, setUserParticipation] = useState<'none' | 'joined' | 'waitlist'>('none')
+  const [currentCount, setCurrentCount] = useState<{ currentPlayers: number; maxPlayers: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
 
-  // Load participants when modal opens
+  // Load participants and count when modal opens
   useEffect(() => {
     if (isOpen && game && user) {
+      console.log('🎯 Modal opened for game:', game.id)
       loadParticipants()
+      loadCurrentCount()
     }
   }, [isOpen, game, user])
 
@@ -59,29 +62,45 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
   useEffect(() => {
     if (!isOpen || !game) return
 
+    console.log('🔔 Setting up real-time subscriptions for game:', game.id)
+
     // Subscribe to participant changes
     const participantSubscription = gameParticipantService.subscribeToGameParticipants(
       game.id,
       (updatedParticipants) => {
+        console.log('🔄 Participants updated via real-time:', updatedParticipants.length)
         setParticipants(updatedParticipants)
         
         // Update user participation status
         const userParticipant = updatedParticipants.find(p => p.user_id === user?.id)
-        setUserParticipation(userParticipant?.status || 'none')
+        const newStatus = userParticipant?.status || 'none'
+        console.log('👤 User participation status:', newStatus)
+        setUserParticipation(newStatus)
+
+        // Update current count based on participants
+        const joinedCount = updatedParticipants.filter(p => p.status === 'joined').length
+        setCurrentCount(prev => prev ? { ...prev, currentPlayers: joinedCount } : null)
+        console.log('📊 Updated current count from participants:', joinedCount)
       }
     )
 
-    // Subscribe to game updates
-    const gameSubscription = gameService.subscribeToGameUpdates(
+    // Subscribe to game count updates
+    const gameSubscription = gameParticipantService.subscribeToGameUpdates(
       game.id,
-      (updatedGame) => {
+      (updatedCount) => {
+        console.log('🔄 Game count updated via real-time:', updatedCount)
+        setCurrentCount(updatedCount)
+        
+        // Update the game object if callback provided
         if (onGameUpdate) {
+          const updatedGame = { ...game, currentPlayers: updatedCount.currentPlayers }
           onGameUpdate(updatedGame)
         }
       }
     )
 
     return () => {
+      console.log('🔌 Cleaning up real-time subscriptions')
       participantSubscription.unsubscribe()
       gameSubscription.unsubscribe()
     }
@@ -128,17 +147,37 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
         setError('Failed to load participants')
         console.error('Error loading participants:', error)
       } else {
+        console.log('✅ Loaded participants:', data?.length || 0)
         setParticipants(data || [])
         
         // Check user's participation status
         const userParticipant = data?.find(p => p.user_id === user.id)
-        setUserParticipation(userParticipant?.status || 'none')
+        const status = userParticipant?.status || 'none'
+        console.log('👤 Initial user participation status:', status)
+        setUserParticipation(status)
       }
     } catch (err) {
       setError('An unexpected error occurred')
       console.error('Error loading participants:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadCurrentCount = async () => {
+    if (!game) return
+
+    try {
+      const { data, error } = await gameParticipantService.getGameCurrentCount(game.id)
+      
+      if (error) {
+        console.error('Error loading current count:', error)
+      } else {
+        console.log('✅ Loaded current count:', data)
+        setCurrentCount(data)
+      }
+    } catch (err) {
+      console.error('Error loading current count:', err)
     }
   }
 
@@ -150,13 +189,19 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
     setSuccess('')
 
     try {
+      console.log('🎮 User attempting to join game:', game.id)
       const { data, error } = await gameParticipantService.joinGame(game.id)
       
       if (error) {
+        console.error('❌ Join failed:', error)
         setError(error)
       } else if (data) {
+        console.log('✅ Join successful:', data)
         setSuccess(data.message)
         setUserParticipation(data.status)
+        
+        // Refresh data immediately
+        await Promise.all([loadParticipants(), loadCurrentCount()])
         
         // Show success message for a few seconds
         setTimeout(() => setSuccess(''), 3000)
@@ -177,14 +222,20 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
     setSuccess('')
 
     try {
+      console.log('🚪 User attempting to leave game:', game.id)
       const { data, error } = await gameParticipantService.leaveGame(game.id)
       
       if (error) {
+        console.error('❌ Leave failed:', error)
         setError(error)
       } else if (data) {
+        console.log('✅ Leave successful:', data)
         setSuccess(data.message)
         setUserParticipation('none')
         setShowLeaveConfirm(false)
+        
+        // Refresh data immediately
+        await Promise.all([loadParticipants(), loadCurrentCount()])
         
         // Show success message for a few seconds
         setTimeout(() => setSuccess(''), 3000)
@@ -275,8 +326,8 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
   }
 
   const isGameFull = () => {
-    if (!game) return false
-    return game.currentPlayers >= game.maxPlayers
+    if (!currentCount) return false
+    return currentCount.currentPlayers >= currentCount.maxPlayers
   }
 
   const canJoinGame = () => {
@@ -290,6 +341,12 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
 
   const joinedParticipants = participants.filter(p => p.status === 'joined')
   const waitlistParticipants = participants.filter(p => p.status === 'waitlist')
+
+  // Use real-time count if available, fallback to game data
+  const displayCurrentPlayers = currentCount?.currentPlayers ?? game?.currentPlayers ?? 0
+  const displayMaxPlayers = currentCount?.maxPlayers ?? game?.maxPlayers ?? 0
+
+  console.log('🎯 Modal render - Current:', displayCurrentPlayers, 'Max:', displayMaxPlayers, 'Participants:', participants.length)
 
   if (!isOpen || !game) return null
 
@@ -318,6 +375,11 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSkillLevelColor(game.skillLevel)}`}>
                   {game.skillLevel === 'any' ? 'Any Level' : game.skillLevel.charAt(0).toUpperCase() + game.skillLevel.slice(1)}
                 </span>
+              </div>
+              {/* Real-time player count in header */}
+              <div className="mt-2 text-sm font-medium text-blue-600">
+                {displayCurrentPlayers}/{displayMaxPlayers} players
+                {isGameFull() && <span className="text-red-600 ml-2">(Full)</span>}
               </div>
             </div>
             <div className="flex items-center space-x-2">
@@ -373,7 +435,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                   <div>
                     <p className="font-medium text-gray-900">Players</p>
                     <p className="text-gray-600">
-                      {game.currentPlayers}/{game.maxPlayers} joined
+                      {displayCurrentPlayers}/{displayMaxPlayers} joined
                       {isGameFull() && <span className="text-red-600 ml-2">(Full)</span>}
                     </p>
                   </div>
@@ -457,7 +519,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
             {/* Participants */}
             <div>
               <h3 className="font-semibold text-gray-900 mb-4">
-                Participants ({joinedParticipants.length}/{game.maxPlayers})
+                Participants ({joinedParticipants.length}/{displayMaxPlayers})
               </h3>
               
               {loading ? (
