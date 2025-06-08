@@ -1,7 +1,7 @@
 export interface Game {
   id: string
   sport: string
-  title: string
+  title?: string
   location: string
   latitude: number
   longitude: number
@@ -14,7 +14,9 @@ export interface Game {
   organizerId: string
   organizerName: string
   isPrivate: boolean
+  status: 'active' | 'cancelled' | 'completed'
   createdAt: string
+  updatedAt?: string
 }
 
 export interface GameFormData {
