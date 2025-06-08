@@ -2,6 +2,7 @@ import React from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Play, Menu, X, User, LogOut, Settings } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { useProfile } from '../contexts/ProfileContext'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -13,6 +14,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, signOut, loading } = useAuth()
+  const { profile } = useProfile()
 
   const isActive = (path: string) => location.pathname === path
 
@@ -29,8 +31,22 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   const getUserDisplayName = () => {
+    if (profile?.name) return profile.name
     if (!user) return ''
     return user.email?.split('@')[0] || 'User'
+  }
+
+  const getUserInitials = () => {
+    if (profile?.name) {
+      const names = profile.name.split(' ')
+      return names.length > 1 
+        ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
+        : names[0][0].toUpperCase()
+    }
+    if (user?.email) {
+      return user.email[0].toUpperCase()
+    }
+    return 'U'
   }
 
   return (
@@ -93,29 +109,37 @@ export default function Layout({ children }: LayoutProps) {
                   <div className="relative">
                     <button
                       onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                      className="flex items-center space-x-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                      className="flex items-center space-x-2 bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
                     >
-                      <User className="h-4 w-4" />
-                      <span>{getUserDisplayName()}</span>
+                      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                        {getUserInitials()}
+                      </div>
+                      <span className="max-w-32 truncate">{getUserDisplayName()}</span>
                     </button>
 
                     {/* User Dropdown */}
                     {isUserMenuOpen && (
                       <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                         <div className="px-4 py-2 border-b border-gray-100">
-                          <p className="text-sm font-medium text-gray-900">{getUserDisplayName()}</p>
-                          <p className="text-xs text-gray-500">{user.email}</p>
+                          <p className="text-sm font-medium text-gray-900 truncate">{getUserDisplayName()}</p>
+                          <p className="text-xs text-gray-500 truncate">{user.email}</p>
                         </div>
-                        <button
-                          onClick={() => {
-                            setIsUserMenuOpen(false)
-                            // Add profile navigation here when implemented
-                          }}
+                        <Link
+                          to="/profile"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                        >
+                          <User className="h-4 w-4" />
+                          <span>View Profile</span>
+                        </Link>
+                        <Link
+                          to="/profile/edit"
+                          onClick={() => setIsUserMenuOpen(false)}
                           className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
                         >
                           <Settings className="h-4 w-4" />
-                          <span>Profile Settings</span>
-                        </button>
+                          <span>Edit Profile</span>
+                        </Link>
                         <button
                           onClick={handleSignOut}
                           className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
@@ -192,10 +216,29 @@ export default function Layout({ children }: LayoutProps) {
                     
                     {/* Mobile User Info */}
                     <div className="border-t border-gray-200 pt-2 mt-2">
-                      <div className="px-3 py-2">
-                        <p className="text-sm font-medium text-gray-900">{getUserDisplayName()}</p>
-                        <p className="text-xs text-gray-500">{user.email}</p>
+                      <div className="px-3 py-2 flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center text-white font-bold">
+                          {getUserInitials()}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{getUserDisplayName()}</p>
+                          <p className="text-xs text-gray-500">{user.email}</p>
+                        </div>
                       </div>
+                      <Link
+                        to="/profile"
+                        className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        View Profile
+                      </Link>
+                      <Link
+                        to="/profile/edit"
+                        className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        Edit Profile
+                      </Link>
                       <button
                         onClick={() => {
                           handleSignOut()

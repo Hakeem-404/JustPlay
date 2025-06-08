@@ -1,47 +1,83 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { ProfileProvider } from './contexts/ProfileContext'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
+import ProfileSetupGuard from './components/ProfileSetupGuard'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import CreateGame from './pages/CreateGame'
+import ProfileSetup from './pages/ProfileSetup'
+import Profile from './pages/Profile'
+import ProfileEdit from './pages/ProfileEdit'
 
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/*"
-            element={
-              <Layout>
-                <Routes>
-                  <Route path="/\" element={<Landing />} />
-                  <Route 
-                    path="/dashboard" 
-                    element={
-                      <ProtectedRoute>
-                        <Dashboard />
-                      </ProtectedRoute>
-                    } 
-                  />
-                  <Route 
-                    path="/create-game" 
-                    element={
-                      <ProtectedRoute>
-                        <CreateGame />
-                      </ProtectedRoute>
-                    } 
-                  />
-                </Routes>
-              </Layout>
-            }
-          />
-        </Routes>
-      </Router>
+      <ProfileProvider>
+        <Router>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/profile/setup" element={
+              <ProtectedRoute>
+                <ProfileSetup />
+              </ProtectedRoute>
+            } />
+            <Route
+              path="/*"
+              element={
+                <Layout>
+                  <Routes>
+                    <Route path="/\" element={<Landing />} />
+                    <Route 
+                      path="/dashboard" 
+                      element={
+                        <ProtectedRoute>
+                          <ProfileSetupGuard>
+                            <Dashboard />
+                          </ProfileSetupGuard>
+                        </ProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/create-game" 
+                      element={
+                        <ProtectedRoute>
+                          <ProfileSetupGuard>
+                            <CreateGame />
+                          </ProfileSetupGuard>
+                        </ProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/profile" 
+                      element={
+                        <ProtectedRoute>
+                          <ProfileSetupGuard>
+                            <Profile />
+                          </ProfileSetupGuard>
+                        </ProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/profile/edit" 
+                      element={
+                        <ProtectedRoute>
+                          <ProfileSetupGuard>
+                            <ProfileEdit />
+                          </ProfileSetupGuard>
+                        </ProtectedRoute>
+                      } 
+                    />
+                  </Routes>
+                </Layout>
+              }
+            />
+          </Routes>
+        </Router>
+      </ProfileProvider>
     </AuthProvider>
   )
 }
