@@ -47,34 +47,70 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+  const [currentGame, setCurrentGame] = useState<Game | null>(null)
+
+  // Update current game when prop changes
+  useEffect(() => {
+    if (game) {
+      console.log('🎮 GameDetailsModal: Game prop updated:', game)
+      setCurrentGame(game)
+    }
+  }, [game])
 
   // Load participants when modal opens
   useEffect(() => {
-    if (isOpen && game && user) {
+    if (isOpen && currentGame && user) {
+      console.log('🔄 GameDetailsModal: Loading initial data for game:', currentGame.id)
       loadParticipants()
+      debugParticipantCount()
     }
-  }, [isOpen, game, user])
+  }, [isOpen, currentGame, user])
 
   // Real-time subscriptions
   useEffect(() => {
-    if (!isOpen || !game) return
+    if (!isOpen || !currentGame) return
+
+    console.log('📡 GameDetailsModal: Setting up real-time subscriptions for game:', currentGame.id)
 
     // Subscribe to participant changes
     const participantSubscription = gameParticipantService.subscribeToGameParticipants(
-      game.id,
+      currentGame.id,
       (updatedParticipants) => {
+        console.log('🔔 GameDetailsModal: Received participant update:', updatedParticipants.length, 'participants')
         setParticipants(updatedParticipants)
         
         // Update user participation status
         const userParticipant = updatedParticipants.find(p => p.user_id === user?.id)
-        setUserParticipation(userParticipant?.status || 'none')
+        const newStatus = userParticipant?.status || 'none'
+        console.log('👤 GameDetailsModal: User participation status:', newStatus)
+        setUserParticipation(newStatus)
+
+        // Update the game's current player count
+        if (currentGame) {
+          const joinedCount = updatedParticipants.filter(p => p.status === 'joined').length
+          console.log('📊 GameDetailsModal: Updating game player count to:', joinedCount)
+          
+          const updatedGame = {
+            ...currentGame,
+            currentPlayers: joinedCount
+          }
+          setCurrentGame(updatedGame)
+          
+          // Notify parent component
+          if (onGameUpdate) {
+            onGameUpdate(updatedGame)
+          }
+        }
       }
     )
 
     // Subscribe to game updates
     const gameSubscription = gameService.subscribeToGameUpdates(
-      game.id,
+      currentGame.id,
       (updatedGame) => {
+        console.log('🔔 GameDetailsModal: Received game update:', updatedGame)
+        setCurrentGame(updatedGame)
+        
         if (onGameUpdate) {
           onGameUpdate(updatedGame)
         }
@@ -82,10 +118,11 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
     )
 
     return () => {
+      console.log('🔌 GameDetailsModal: Cleaning up subscriptions')
       participantSubscription.unsubscribe()
       gameSubscription.unsubscribe()
     }
-  }, [isOpen, game, user, onGameUpdate])
+  }, [isOpen, currentGame, user, onGameUpdate])
 
   // Close modal on escape key and handle body scroll
   useEffect(() => {
@@ -116,98 +153,139 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
   }, [isOpen])
 
   const loadParticipants = async () => {
-    if (!game || !user) return
+    if (!currentGame || !user) return
 
     setLoading(true)
     setError('')
 
     try {
-      const { data, error } = await gameParticipantService.getGameParticipants(game.id)
+      console.log('📊 GameDetailsModal: Loading participants for game:', currentGame.id)
+      
+      const { data, error } = await gameParticipantService.getGameParticipants(currentGame.id)
       
       if (error) {
         setError('Failed to load participants')
-        console.error('Error loading participants:', error)
+        console.error('❌ GameDetailsModal: Error loading participants:', error)
       } else {
+        console.log('✅ GameDetailsModal: Loaded participants:', data?.length || 0)
         setParticipants(data || [])
         
         // Check user's participation status
         const userParticipant = data?.find(p => p.user_id === user.id)
-        setUserParticipation(userParticipant?.status || 'none')
+        const status = userParticipant?.status || 'none'
+        console.log('👤 GameDetailsModal: User participation status:', status)
+        setUserParticipation(status)
+
+        // Update current game player count
+        const joinedCount = data?.filter(p => p.status === 'joined').length || 0
+        console.log('📊 GameDetailsModal: Current joined count:', joinedCount)
+        
+        if (currentGame.currentPlayers !== joinedCount) {
+          console.log('🔄 GameDetailsModal: Updating game player count from', currentGame.currentPlayers, 'to', joinedCount)
+          const updatedGame = {
+            ...currentGame,
+            currentPlayers: joinedCount
+          }
+          setCurrentGame(updatedGame)
+          
+          if (onGameUpdate) {
+            onGameUpdate(updatedGame)
+          }
+        }
       }
     } catch (err) {
       setError('An unexpected error occurred')
-      console.error('Error loading participants:', err)
+      console.error('💥 GameDetailsModal: Error loading participants:', err)
     } finally {
       setLoading(false)
     }
   }
 
+  const debugParticipantCount = async () => {
+    if (!currentGame) return
+    await gameParticipantService.debugParticipantCount(currentGame.id)
+  }
+
   const handleJoinGame = async () => {
-    if (!game || !user) return
+    if (!currentGame || !user) return
 
     setActionLoading(true)
     setError('')
     setSuccess('')
 
     try {
-      const { data, error } = await gameParticipantService.joinGame(game.id)
+      console.log('🎯 GameDetailsModal: User attempting to join game:', currentGame.id)
+      
+      const { data, error } = await gameParticipantService.joinGame(currentGame.id)
       
       if (error) {
+        console.error('❌ GameDetailsModal: Join game error:', error)
         setError(error)
       } else if (data) {
+        console.log('✅ GameDetailsModal: Successfully joined game:', data)
         setSuccess(data.message)
         setUserParticipation(data.status)
+        
+        // Reload participants to get updated count
+        await loadParticipants()
         
         // Show success message for a few seconds
         setTimeout(() => setSuccess(''), 3000)
       }
     } catch (err) {
       setError('An unexpected error occurred')
-      console.error('Error joining game:', err)
+      console.error('💥 GameDetailsModal: Error joining game:', err)
     } finally {
       setActionLoading(false)
     }
   }
 
   const handleLeaveGame = async () => {
-    if (!game || !user) return
+    if (!currentGame || !user) return
 
     setActionLoading(true)
     setError('')
     setSuccess('')
 
     try {
-      const { data, error } = await gameParticipantService.leaveGame(game.id)
+      console.log('🚪 GameDetailsModal: User attempting to leave game:', currentGame.id)
+      
+      const { data, error } = await gameParticipantService.leaveGame(currentGame.id)
       
       if (error) {
+        console.error('❌ GameDetailsModal: Leave game error:', error)
         setError(error)
       } else if (data) {
+        console.log('✅ GameDetailsModal: Successfully left game:', data)
         setSuccess(data.message)
         setUserParticipation('none')
         setShowLeaveConfirm(false)
+        
+        // Reload participants to get updated count
+        await loadParticipants()
         
         // Show success message for a few seconds
         setTimeout(() => setSuccess(''), 3000)
       }
     } catch (err) {
       setError('An unexpected error occurred')
-      console.error('Error leaving game:', err)
+      console.error('💥 GameDetailsModal: Error leaving game:', err)
     } finally {
       setActionLoading(false)
     }
   }
 
   const handleShare = async () => {
-    if (!game) return
+    if (!currentGame) return
 
-    const gameUrl = `${window.location.origin}/game/${game.id}`
-    const shareText = `Join me for ${game.sport} on ${formatDate(game.date)} at ${game.time} in ${game.location}`
+    const gameUrl = `${window.location.origin}/game/${currentGame.id}`
+    const shareText = `Join me for ${currentGame.sport} on ${formatDate(currentGame.date)} at ${currentGame.time} in ${currentGame.location}`
     
     // Try Web Share API first (mobile devices)
     if (navigator.share && navigator.canShare) {
       try {
         await navigator.share({
-          title: `${game.sport} Game - JustPlay`,
+          title: `${currentGame.sport} Game - JustPlay`,
           text: shareText,
           url: gameUrl
         })
@@ -269,21 +347,21 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
   }
 
   const isGameInPast = () => {
-    if (!game) return false
-    const gameDateTime = new Date(`${game.date}T${game.time}`)
+    if (!currentGame) return false
+    const gameDateTime = new Date(`${currentGame.date}T${currentGame.time}`)
     return gameDateTime < new Date()
   }
 
   const isGameFull = () => {
-    if (!game) return false
-    return game.currentPlayers >= game.maxPlayers
+    if (!currentGame) return false
+    return currentGame.currentPlayers >= currentGame.maxPlayers
   }
 
   const canJoinGame = () => {
-    if (!game || !user) return false
+    if (!currentGame || !user) return false
     if (isGameInPast()) return false
-    if (game.status !== 'active') return false
-    if (game.organizerId === user.id) return false
+    if (currentGame.status !== 'active') return false
+    if (currentGame.organizerId === user.id) return false
     if (userParticipation !== 'none') return false
     return true
   }
@@ -291,7 +369,12 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
   const joinedParticipants = participants.filter(p => p.status === 'joined')
   const waitlistParticipants = participants.filter(p => p.status === 'waitlist')
 
-  if (!isOpen || !game) return null
+  // Use currentGame instead of game for all displays
+  const displayGame = currentGame || game
+
+  if (!isOpen || !displayGame) return null
+
+  console.log('🎮 GameDetailsModal: Rendering with game:', displayGame.id, 'Players:', displayGame.currentPlayers, '/', displayGame.maxPlayers)
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
@@ -308,15 +391,15 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
           <div className="flex items-start justify-between">
             <div className="flex-1 pr-4">
               <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                {game.title || game.sport}
+                {displayGame.title || displayGame.sport}
               </h1>
               <div className="flex items-center space-x-4 text-sm text-gray-600">
                 <div className="flex items-center">
                   <MapPin className="h-4 w-4 mr-1" />
-                  <span className="truncate">{game.location}</span>
+                  <span className="truncate">{displayGame.location}</span>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSkillLevelColor(game.skillLevel)}`}>
-                  {game.skillLevel === 'any' ? 'Any Level' : game.skillLevel.charAt(0).toUpperCase() + game.skillLevel.slice(1)}
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSkillLevelColor(displayGame.skillLevel)}`}>
+                  {displayGame.skillLevel === 'any' ? 'Any Level' : displayGame.skillLevel.charAt(0).toUpperCase() + displayGame.skillLevel.slice(1)}
                 </span>
               </div>
             </div>
@@ -364,7 +447,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                   <Calendar className="h-5 w-5 text-blue-600" />
                   <div>
                     <p className="font-medium text-gray-900">Date & Time</p>
-                    <p className="text-gray-600">{formatDate(game.date)} at {game.time}</p>
+                    <p className="text-gray-600">{formatDate(displayGame.date)} at {displayGame.time}</p>
                   </div>
                 </div>
 
@@ -373,7 +456,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                   <div>
                     <p className="font-medium text-gray-900">Players</p>
                     <p className="text-gray-600">
-                      {game.currentPlayers}/{game.maxPlayers} joined
+                      {displayGame.currentPlayers}/{displayGame.maxPlayers} joined
                       {isGameFull() && <span className="text-red-600 ml-2">(Full)</span>}
                     </p>
                   </div>
@@ -383,7 +466,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                   <User className="h-5 w-5 text-purple-600" />
                   <div>
                     <p className="font-medium text-gray-900">Organizer</p>
-                    <p className="text-gray-600">{game.organizerName}</p>
+                    <p className="text-gray-600">{displayGame.organizerName}</p>
                   </div>
                 </div>
               </div>
@@ -394,7 +477,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                   <div>
                     <p className="font-medium text-gray-900">Skill Level</p>
                     <p className="text-gray-600">
-                      {game.skillLevel === 'any' ? 'All levels welcome' : game.skillLevel.charAt(0).toUpperCase() + game.skillLevel.slice(1)}
+                      {displayGame.skillLevel === 'any' ? 'All levels welcome' : displayGame.skillLevel.charAt(0).toUpperCase() + displayGame.skillLevel.slice(1)}
                     </p>
                   </div>
                 </div>
@@ -404,12 +487,12 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                   <div>
                     <p className="font-medium text-gray-900">Status</p>
                     <p className="text-gray-600">
-                      {isGameInPast() ? 'Past Game' : game.status.charAt(0).toUpperCase() + game.status.slice(1)}
+                      {isGameInPast() ? 'Past Game' : displayGame.status.charAt(0).toUpperCase() + displayGame.status.slice(1)}
                     </p>
                   </div>
                 </div>
 
-                {game.isPrivate && (
+                {displayGame.isPrivate && (
                   <div className="flex items-center space-x-3">
                     <AlertCircle className="h-5 w-5 text-yellow-600" />
                     <div>
@@ -422,10 +505,10 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
             </div>
 
             {/* Description */}
-            {game.description && (
+            {displayGame.description && (
               <div>
                 <h3 className="font-semibold text-gray-900 mb-2">Description</h3>
-                <p className="text-gray-700 leading-relaxed">{game.description}</p>
+                <p className="text-gray-700 leading-relaxed">{displayGame.description}</p>
               </div>
             )}
 
@@ -435,14 +518,14 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <p className="font-medium text-gray-900">{game.location}</p>
+                    <p className="font-medium text-gray-900">{displayGame.location}</p>
                     <p className="text-sm text-gray-600 mt-1">
-                      {game.latitude.toFixed(4)}, {game.longitude.toFixed(4)}
+                      {displayGame.latitude.toFixed(4)}, {displayGame.longitude.toFixed(4)}
                     </p>
                   </div>
                   <button
                     onClick={() => {
-                      const url = `https://www.google.com/maps?q=${game.latitude},${game.longitude}`
+                      const url = `https://www.google.com/maps?q=${displayGame.latitude},${displayGame.longitude}`
                       window.open(url, '_blank')
                     }}
                     className="text-blue-600 hover:text-blue-700 flex items-center space-x-1 text-sm ml-4"
@@ -457,7 +540,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
             {/* Participants */}
             <div>
               <h3 className="font-semibold text-gray-900 mb-4">
-                Participants ({joinedParticipants.length}/{game.maxPlayers})
+                Participants ({joinedParticipants.length}/{displayGame.maxPlayers})
               </h3>
               
               {loading ? (
@@ -480,7 +563,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center space-x-2">
                                 <p className="font-medium text-gray-900 truncate">{participant.name}</p>
-                                {participant.user_id === game.organizerId && (
+                                {participant.user_id === displayGame.organizerId && (
                                   <Crown className="h-3 w-3 text-yellow-500" title="Organizer" />
                                 )}
                               </div>
@@ -616,8 +699,8 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                       className="flex-1 bg-gray-300 text-gray-500 py-3 px-4 rounded-lg font-medium cursor-not-allowed"
                     >
                       {isGameInPast() ? 'Game Ended' : 
-                       game.organizerId === user.id ? 'Your Game' : 
-                       game.status !== 'active' ? 'Game Inactive' : 'Cannot Join'}
+                       displayGame.organizerId === user.id ? 'Your Game' : 
+                       displayGame.status !== 'active' ? 'Game Inactive' : 'Cannot Join'}
                     </button>
                   )}
                 </>

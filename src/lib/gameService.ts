@@ -3,6 +3,8 @@ import { Game, GameFormData } from '../types/game'
 
 export const gameService = {
   async createGame(gameData: GameFormData, organizerId: string): Promise<{ data: Game | null; error: any }> {
+    console.log('🎮 Creating new game:', gameData)
+    
     const { data, error } = await supabase
       .from('games')
       .insert({
@@ -27,9 +29,11 @@ export const gameService = {
       .single()
 
     if (error) {
-      console.error('Error creating game:', error)
+      console.error('❌ Error creating game:', error)
       return { data: null, error }
     }
+
+    console.log('✅ Game created successfully:', data)
 
     // Transform the data to match our Game interface (camelCase)
     const transformedData: Game = {
@@ -65,6 +69,8 @@ export const gameService = {
     dateTo?: string
     skillLevel?: string
   }): Promise<{ data: Game[] | null; error: any }> {
+    console.log('📊 Loading games with filters:', filters)
+    
     let query = supabase
       .from('games')
       .select(`
@@ -96,9 +102,11 @@ export const gameService = {
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching games:', error)
+      console.error('❌ Error fetching games:', error)
       return { data: null, error }
     }
+
+    console.log('✅ Loaded games:', data?.length || 0)
 
     // Transform the data to match our Game interface (camelCase)
     const transformedData: Game[] = data?.map(game => ({
@@ -140,6 +148,8 @@ export const gameService = {
   },
 
   async getUserGames(userId: string): Promise<{ data: Game[] | null; error: any }> {
+    console.log('👤 Loading user games for:', userId)
+    
     const { data, error } = await supabase
       .from('games')
       .select(`
@@ -151,9 +161,11 @@ export const gameService = {
       .order('time', { ascending: true })
 
     if (error) {
-      console.error('Error fetching user games:', error)
+      console.error('❌ Error fetching user games:', error)
       return { data: null, error }
     }
+
+    console.log('✅ Loaded user games:', data?.length || 0)
 
     // Transform the data to match our Game interface (camelCase)
     const transformedData: Game[] = data?.map(game => ({
@@ -181,6 +193,8 @@ export const gameService = {
   },
 
   async updateGame(gameId: string, updates: Partial<GameFormData>): Promise<{ error: any }> {
+    console.log('🔄 Updating game:', gameId, updates)
+    
     // Convert camelCase to snake_case for database
     const dbUpdates: any = {
       updated_at: new Date().toISOString()
@@ -203,19 +217,35 @@ export const gameService = {
       .update(dbUpdates)
       .eq('id', gameId)
 
+    if (error) {
+      console.error('❌ Error updating game:', error)
+    } else {
+      console.log('✅ Game updated successfully')
+    }
+
     return { error }
   },
 
   async deleteGame(gameId: string): Promise<{ error: any }> {
+    console.log('🗑️ Deleting game:', gameId)
+    
     const { error } = await supabase
       .from('games')
       .delete()
       .eq('id', gameId)
 
+    if (error) {
+      console.error('❌ Error deleting game:', error)
+    } else {
+      console.log('✅ Game deleted successfully')
+    }
+
     return { error }
   },
 
   async getGameById(gameId: string): Promise<{ data: Game | null; error: any }> {
+    console.log('🎮 Loading game by ID:', gameId)
+    
     const { data, error } = await supabase
       .from('games')
       .select(`
@@ -226,9 +256,11 @@ export const gameService = {
       .single()
 
     if (error) {
-      console.error('Error fetching game:', error)
+      console.error('❌ Error fetching game:', error)
       return { data: null, error }
     }
+
+    console.log('✅ Loaded game:', data)
 
     // Transform the data to match our Game interface (camelCase)
     const transformedData: Game = {
@@ -255,8 +287,10 @@ export const gameService = {
     return { data: transformedData, error: null }
   },
 
-  // Real-time subscription for game updates
+  // Enhanced real-time subscription for game updates
   subscribeToGameUpdates(gameId: string, callback: (game: Game) => void) {
+    console.log('📡 Setting up game update subscription for:', gameId)
+    
     const subscription = supabase
       .channel(`game_${gameId}`)
       .on(
@@ -267,21 +301,28 @@ export const gameService = {
           table: 'games',
           filter: `id=eq.${gameId}`
         },
-        async () => {
+        async (payload) => {
+          console.log('🔔 Game update received:', payload)
+          
           // Reload game data when changes occur
-          const { data } = await this.getGameById(gameId)
+          const { data } = await gameService.getGameById(gameId)
           if (data) {
+            console.log('🔄 Updated game data:', data)
             callback(data)
           }
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('📡 Game subscription status:', status)
+      })
 
     return subscription
   },
 
   // Subscribe to all games updates for dashboard
   subscribeToGamesUpdates(callback: () => void) {
+    console.log('📡 Setting up global games update subscription')
+    
     const subscription = supabase
       .channel('games_updates')
       .on(
@@ -291,11 +332,14 @@ export const gameService = {
           schema: 'public',
           table: 'games'
         },
-        () => {
+        (payload) => {
+          console.log('🔔 Global game update received:', payload.eventType)
           callback()
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('📡 Global games subscription status:', status)
+      })
 
     return subscription
   }

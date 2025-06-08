@@ -58,6 +58,8 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
 
   // Filter games based on current filters
   const filteredGames = useMemo(() => {
+    console.log('🗺️ GameMap: Filtering games, total:', games.length)
+    
     const filtered = games.filter(game => {
       // Sport filter
       if (debouncedFilters.sports.length > 0 && !debouncedFilters.sports.includes(game.sport)) {
@@ -103,6 +105,8 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
       return true
     })
 
+    console.log('🗺️ GameMap: Filtered games:', filtered.length)
+    
     // Limit to 20 games for performance
     return filtered.slice(0, 20)
   }, [games, debouncedFilters, latitude, longitude])
@@ -146,6 +150,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   }
 
   const handleMarkerClick = useCallback((game: Game) => {
+    console.log('🗺️ GameMap: Marker clicked for game:', game.id)
     setPopupInfo({
       game,
       longitude: game.longitude,
@@ -154,6 +159,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   }, [])
 
   const handlePopupClose = useCallback(() => {
+    console.log('🗺️ GameMap: Popup closed')
     setPopupInfo(null)
   }, [])
 
@@ -333,8 +339,10 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   )
 }
 
-// Clean GamePopup Component
+// Enhanced GamePopup Component with better error handling
 function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (game: Game) => void; onClose: () => void }) {
+  console.log('🗺️ GamePopup: Rendering for game:', game?.id, 'Players:', game?.currentPlayers, '/', game?.maxPlayers)
+  
   // Early return if game is null/undefined
   if (!game) {
     return (
@@ -475,6 +483,7 @@ function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (g
         <button
           onClick={() => {
             try {
+              console.log('🗺️ GamePopup: Opening game details for:', game.id)
               onGameClick(game)
             } catch (error) {
               console.error('Error handling game click:', error)
