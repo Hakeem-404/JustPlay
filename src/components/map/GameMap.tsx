@@ -333,7 +333,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   )
 }
 
-// Clean GamePopup Component without debug information
+// Clean GamePopup Component
 function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (game: Game) => void; onClose: () => void }) {
   // Early return if game is null/undefined
   if (!game) {
@@ -405,18 +405,15 @@ function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (g
     }
   }
 
-  // Safe property access with fallbacks and field mapping
+  // Safe property access with fallbacks
   const sport = game.sport || 'Unknown Sport'
   const location = game.location || 'Location TBD'
-  const skillLevel = game.skillLevel || game.skill_level || 'any'
+  const skillLevel = game.skillLevel || 'any'
   const date = game.date || ''
   const time = game.time || 'Time TBD'
-  
-  // Handle both camelCase and snake_case field names from database
-  const currentPlayers = game.currentPlayers ?? game.current_players ?? 0
-  const maxPlayers = game.maxPlayers ?? game.max_players ?? 0
-  
-  const organizerName = game.organizerName || game.organizer_name || 'Unknown Organizer'
+  const currentPlayers = game.currentPlayers ?? 0
+  const maxPlayers = game.maxPlayers ?? 0
+  const organizerName = game.organizerName || 'Unknown Organizer'
   const description = game.description || ''
 
   const spotsLeft = Math.max(maxPlayers - currentPlayers, 0)

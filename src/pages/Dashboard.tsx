@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, List, Map as MapIcon, AlertCircle, RefreshCw } from 'lucide-react'
+import { Plus, List, Map as MapIcon, AlertCircle, RefreshCw, Users, Calendar, MapPin } from 'lucide-react'
 import GameMap from '../components/map/GameMap'
 import GameDetailsModal from '../components/GameDetailsModal'
 import { gameService } from '../lib/gameService'
+import { gameParticipantService } from '../lib/gameParticipantService'
 import { Game, MapFilters } from '../types/game'
 import { useGeolocation } from '../hooks/useGeolocation'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function Dashboard() {
+  const { user } = useAuth()
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map')
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [games, setGames] = useState<Game[]>([])
+  const [userParticipations, setUserParticipations] = useState<{ [gameId: string]: 'joined' | 'waitlist' }>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { latitude, longitude } = useGeolocation()
@@ -31,11 +35,6 @@ export default function Dashboard() {
       // Build filter object for API
       const apiFilters: any = {}
       
-      if (filters.sports.length > 0) {
-        // For now, we'll filter on the frontend since we're getting all games
-        // In a real app, you'd want to filter on the backend
-      }
-
       if (latitude && longitude) {
         apiFilters.latitude = latitude
         apiFilters.longitude = longitude
@@ -83,6 +82,11 @@ export default function Dashboard() {
         }
 
         setGames(filteredGames)
+
+        // Load user participations for each game
+        if (user && filteredGames.length > 0) {
+          loadUserParticipations(filteredGames)
+        }
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.')
@@ -92,9 +96,40 @@ export default function Dashboard() {
     }
   }
 
+  const loadUserParticipations = async (gamesList: Game[]) => {
+    if (!user) return
+
+    const participations: { [gameId: string]: 'joined' | 'waitlist' } = {}
+
+    await Promise.all(
+      gamesList.map(async (game) => {
+        const { data } = await gameParticipantService.getUserParticipation(game.id, user.id)
+        if (data && data.status) {
+          participations[game.id] = data.status
+        }
+      })
+    )
+
+    setUserParticipations(participations)
+  }
+
   useEffect(() => {
     loadGames()
   }, [filters, latitude, longitude])
+
+  // Real-time subscriptions
+  useEffect(() => {
+    if (!user) return
+
+    // Subscribe to games updates
+    const gamesSubscription = gameService.subscribeToGamesUpdates(() => {
+      loadGames()
+    })
+
+    return () => {
+      gamesSubscription.unsubscribe()
+    }
+  }, [user, filters, latitude, longitude])
 
   const handleGameClick = (game: Game) => {
     setSelectedGame(game)
@@ -140,6 +175,33 @@ export default function Dashboard() {
       case 'intermediate': return 'bg-yellow-100 text-yellow-700'
       case 'advanced': return 'bg-red-100 text-red-700'
       default: return 'bg-gray-100 text-gray-700'
+    }
+  }
+
+  const getParticipationStatus = (gameId: string) => {
+    return userParticipations[gameId] || 'none'
+  }
+
+  const getParticipationBadge = (gameId: string) => {
+    const status = getParticipationStatus(gameId)
+    
+    switch (status) {
+      case 'joined':
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+            <Users className="h-3 w-3 mr-1" />
+            Joined
+          </span>
+        )
+      case 'waitlist':
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+            <Clock className="h-3 w-3 mr-1" />
+            Waitlist
+          </span>
+        )
+      default:
+        return null
     }
   }
 
@@ -273,8 +335,8 @@ export default function Dashboard() {
               {games.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-gray-400 mb-4">
-                    <svg className="h-16 w-16 mx-auto\" fill="none\" viewBox="0 0 24 24\" stroke="currentColor">
-                      <path strokeLinecap="round\" strokeLinejoin="round\" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <svg className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No games found</h3>
@@ -293,6 +355,9 @@ export default function Dashboard() {
                 <div className="grid gap-4">
                   {games.map((game) => {
                     const spotsLeft = game.maxPlayers - game.currentPlayers
+                    const participationStatus = getParticipationStatus(game.id)
+                    const isOrganizer = user?.id === game.organizerId
+                    
                     return (
                       <div
                         key={game.id}
@@ -300,11 +365,23 @@ export default function Dashboard() {
                         onClick={() => handleGameClick(game)}
                       >
                         <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h3 className="text-xl font-semibold text-gray-900">
-                              {game.title || game.sport}
-                            </h3>
-                            <p className="text-gray-600">{game.location}</p>
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-2">
+                              <h3 className="text-xl font-semibold text-gray-900">
+                                {game.title || game.sport}
+                              </h3>
+                              {getParticipationBadge(game.id)}
+                              {isOrganizer && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                                  <Star className="h-3 w-3 mr-1" />
+                                  Organizer
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center text-gray-600 mb-2">
+                              <MapPin className="h-4 w-4 mr-1" />
+                              <span className="truncate">{game.location}</span>
+                            </div>
                           </div>
                           <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSkillLevelColor(game.skillLevel)}`}>
                             {game.skillLevel === 'any' ? 'Any Level' : game.skillLevel.charAt(0).toUpperCase() + game.skillLevel.slice(1)}
@@ -312,27 +389,52 @@ export default function Dashboard() {
                         </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                          <div className="text-sm text-gray-600">
-                            <span className="font-medium">Date:</span> {formatDate(game.date)}
+                          <div className="flex items-center text-sm text-gray-600">
+                            <Calendar className="h-4 w-4 mr-2" />
+                            <div>
+                              <span className="font-medium">Date:</span>
+                              <p>{formatDate(game.date)}</p>
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-600">
-                            <span className="font-medium">Time:</span> {game.time}
+                          <div className="flex items-center text-sm text-gray-600">
+                            <Clock className="h-4 w-4 mr-2" />
+                            <div>
+                              <span className="font-medium">Time:</span>
+                              <p>{game.time}</p>
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-600">
-                            <span className="font-medium">Players:</span> {game.currentPlayers}/{game.maxPlayers}
+                          <div className="flex items-center text-sm text-gray-600">
+                            <Users className="h-4 w-4 mr-2" />
+                            <div>
+                              <span className="font-medium">Players:</span>
+                              <p>{game.currentPlayers}/{game.maxPlayers}</p>
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-600">
-                            <span className="font-medium">Organizer:</span> {game.organizerName}
+                          <div className="flex items-center text-sm text-gray-600">
+                            <User className="h-4 w-4 mr-2" />
+                            <div>
+                              <span className="font-medium">Organizer:</span>
+                              <p className="truncate">{game.organizerName}</p>
+                            </div>
                           </div>
                         </div>
 
                         {game.description && (
-                          <p className="text-gray-700 mb-4">{game.description}</p>
+                          <p className="text-gray-700 mb-4 line-clamp-2">{game.description}</p>
                         )}
 
                         <div className="flex justify-between items-center">
-                          <div className="text-sm text-gray-500">
-                            {spotsLeft > 0 ? `${spotsLeft} spots left` : 'Game full'}
+                          <div className="text-sm">
+                            {spotsLeft > 0 ? (
+                              <span className="text-green-600 font-medium">
+                                {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left
+                              </span>
+                            ) : (
+                              <span className="text-red-600 font-medium">Game full</span>
+                            )}
+                            {participationStatus === 'waitlist' && (
+                              <span className="text-yellow-600 font-medium ml-2">• On waitlist</span>
+                            )}
                           </div>
                           <button
                             onClick={(e) => {

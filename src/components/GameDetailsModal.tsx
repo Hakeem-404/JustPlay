@@ -14,11 +14,12 @@ import {
   UserPlus,
   UserMinus,
   ExternalLink,
-  Copy
+  Crown
 } from 'lucide-react'
 import { Game } from '../types/game'
 import { useAuth } from '../contexts/AuthContext'
 import { gameParticipantService } from '../lib/gameParticipantService'
+import { gameService } from '../lib/gameService'
 
 interface GameDetailsModalProps {
   game: Game | null
@@ -54,6 +55,38 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
     }
   }, [isOpen, game, user])
 
+  // Real-time subscriptions
+  useEffect(() => {
+    if (!isOpen || !game) return
+
+    // Subscribe to participant changes
+    const participantSubscription = gameParticipantService.subscribeToGameParticipants(
+      game.id,
+      (updatedParticipants) => {
+        setParticipants(updatedParticipants)
+        
+        // Update user participation status
+        const userParticipant = updatedParticipants.find(p => p.user_id === user?.id)
+        setUserParticipation(userParticipant?.status || 'none')
+      }
+    )
+
+    // Subscribe to game updates
+    const gameSubscription = gameService.subscribeToGameUpdates(
+      game.id,
+      (updatedGame) => {
+        if (onGameUpdate) {
+          onGameUpdate(updatedGame)
+        }
+      }
+    )
+
+    return () => {
+      participantSubscription.unsubscribe()
+      gameSubscription.unsubscribe()
+    }
+  }, [isOpen, game, user, onGameUpdate])
+
   // Close modal on escape key and handle body scroll
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -72,6 +105,15 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
       document.body.style.overflow = 'unset'
     }
   }, [isOpen, onClose])
+
+  // Clear messages when modal opens/closes
+  useEffect(() => {
+    if (isOpen) {
+      setError('')
+      setSuccess('')
+      setShowLeaveConfirm(false)
+    }
+  }, [isOpen])
 
   const loadParticipants = async () => {
     if (!game || !user) return
@@ -116,17 +158,8 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
         setSuccess(data.message)
         setUserParticipation(data.status)
         
-        // Reload participants to get updated list
-        await loadParticipants()
-        
-        // Update game object if callback provided
-        if (onGameUpdate && data.status === 'joined') {
-          const updatedGame = {
-            ...game,
-            currentPlayers: game.currentPlayers + 1
-          }
-          onGameUpdate(updatedGame)
-        }
+        // Show success message for a few seconds
+        setTimeout(() => setSuccess(''), 3000)
       }
     } catch (err) {
       setError('An unexpected error occurred')
@@ -153,17 +186,8 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
         setUserParticipation('none')
         setShowLeaveConfirm(false)
         
-        // Reload participants to get updated list
-        await loadParticipants()
-        
-        // Update game object if callback provided
-        if (onGameUpdate) {
-          const updatedGame = {
-            ...game,
-            currentPlayers: Math.max(game.currentPlayers - 1, 1)
-          }
-          onGameUpdate(updatedGame)
-        }
+        // Show success message for a few seconds
+        setTimeout(() => setSuccess(''), 3000)
       }
     } catch (err) {
       setError('An unexpected error occurred')
@@ -198,6 +222,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(`${shareText}\n\n${gameUrl}`)
         setSuccess('Game details copied to clipboard!')
+        setTimeout(() => setSuccess(''), 3000)
       } else {
         // Fallback for older browsers
         const textArea = document.createElement('textarea')
@@ -207,6 +232,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
         document.execCommand('copy')
         document.body.removeChild(textArea)
         setSuccess('Game details copied to clipboard!')
+        setTimeout(() => setSuccess(''), 3000)
       }
     } catch (err) {
       setError('Failed to copy game details')
@@ -452,7 +478,12 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                               {participant.name.charAt(0).toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 truncate">{participant.name}</p>
+                              <div className="flex items-center space-x-2">
+                                <p className="font-medium text-gray-900 truncate">{participant.name}</p>
+                                {participant.user_id === game.organizerId && (
+                                  <Crown className="h-3 w-3 text-yellow-500" title="Organizer" />
+                                )}
+                              </div>
                               <div className="flex items-center space-x-2 text-sm text-gray-600">
                                 <Star className="h-3 w-3 text-yellow-500" />
                                 <span>{participant.average_rating.toFixed(1)}</span>

@@ -53,9 +53,6 @@ export const gameService = {
       updatedAt: data.updated_at // Convert to camelCase
     }
 
-    console.log('Game created - Raw data:', data)
-    console.log('Game created - Transformed data:', transformedData)
-
     return { data: transformedData, error: null }
   },
 
@@ -124,9 +121,6 @@ export const gameService = {
       createdAt: game.created_at, // Convert to camelCase
       updatedAt: game.updated_at // Convert to camelCase
     })) || []
-
-    console.log('Games fetched - Raw data sample:', data?.[0])
-    console.log('Games fetched - Transformed data sample:', transformedData?.[0])
 
     // Apply distance filter if coordinates provided
     if (filters?.latitude && filters?.longitude && filters?.maxDistance) {
@@ -259,6 +253,51 @@ export const gameService = {
     }
 
     return { data: transformedData, error: null }
+  },
+
+  // Real-time subscription for game updates
+  subscribeToGameUpdates(gameId: string, callback: (game: Game) => void) {
+    const subscription = supabase
+      .channel(`game_${gameId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'games',
+          filter: `id=eq.${gameId}`
+        },
+        async () => {
+          // Reload game data when changes occur
+          const { data } = await this.getGameById(gameId)
+          if (data) {
+            callback(data)
+          }
+        }
+      )
+      .subscribe()
+
+    return subscription
+  },
+
+  // Subscribe to all games updates for dashboard
+  subscribeToGamesUpdates(callback: () => void) {
+    const subscription = supabase
+      .channel('games_updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'games'
+        },
+        () => {
+          callback()
+        }
+      )
+      .subscribe()
+
+    return subscription
   }
 }
 
