@@ -48,18 +48,37 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     })))
   }, [games])
 
-  // Update view when user location is available
+  // Update view when user location is available OR when showing global games
   useEffect(() => {
-    if (latitude && longitude && mapLoaded) {
-      console.log('🗺️ DEBUG: Updating map view to user location:', { latitude, longitude })
-      setViewState(prev => ({
-        ...prev,
-        longitude,
-        latitude,
-        zoom: 12
-      }))
+    if (mapLoaded) {
+      if (filters.distance >= 999999 && games.length > 0) {
+        // For global view, fit all games on the map
+        console.log('🗺️ DEBUG: Fitting map to show all games globally')
+        const bounds = games.reduce((bounds, game) => {
+          return [
+            [Math.min(bounds[0][0], game.longitude), Math.min(bounds[0][1], game.latitude)],
+            [Math.max(bounds[1][0], game.longitude), Math.max(bounds[1][1], game.latitude)]
+          ]
+        }, [[180, 90], [-180, -90]])
+        
+        if (mapRef.current) {
+          mapRef.current.fitBounds(bounds, {
+            padding: 50,
+            maxZoom: 10
+          })
+        }
+      } else if (latitude && longitude) {
+        // For local view, center on user location
+        console.log('🗺️ DEBUG: Updating map view to user location:', { latitude, longitude })
+        setViewState(prev => ({
+          ...prev,
+          longitude,
+          latitude,
+          zoom: 12
+        }))
+      }
     }
-  }, [latitude, longitude, mapLoaded])
+  }, [latitude, longitude, mapLoaded, filters.distance, games])
 
   // Debounced filter changes
   const [debouncedFilters, setDebouncedFilters] = useState(filters)
@@ -86,8 +105,15 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
         return false
       }
 
-      // Distance filter (only if user location is available AND not "no limit")
-      if (latitude && longitude && debouncedFilters.distance < 999999) {
+      // CRITICAL FIX: Distance filter (only if user location is available AND not "no limit")
+      const isNoLimit = debouncedFilters.distance >= 999999
+      console.log(`🗺️ DEBUG: Game ${game.id} distance check:`, {
+        hasLocation: !!(latitude && longitude),
+        isNoLimit,
+        distance: debouncedFilters.distance
+      })
+
+      if (latitude && longitude && !isNoLimit) {
         const distance = calculateDistance(
           latitude, longitude,
           game.latitude, game.longitude
@@ -98,7 +124,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
           return false
         }
       } else {
-        console.log(`🗺️ DEBUG: Game ${game.id} - no distance filter applied (no location or no limit)`)
+        console.log(`🗺️ DEBUG: Game ${game.id} - no distance filter applied (${isNoLimit ? 'no limit' : 'no location'})`)
       }
 
       // Date filter
@@ -398,6 +424,9 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
         <span className="text-sm text-gray-600">
           {filteredGames.length} game{filteredGames.length !== 1 ? 's' : ''} found
           {filteredGames.length === 50 && games.length > 50 && ' (showing first 50)'}
+          {filters.distance >= 999999 && (
+            <span className="ml-2 text-blue-600 font-medium">• Worldwide</span>
+          )}
         </span>
       </div>
     </div>

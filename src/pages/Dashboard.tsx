@@ -52,17 +52,22 @@ export default function Dashboard() {
       // Build filter object for API
       const apiFilters: any = {}
       
-      // Only apply distance filter if user location is available AND distance is not "no limit"
-      if (latitude && longitude && filters.distance < 999999) {
+      // CRITICAL FIX: Only apply distance filter if user location is available AND distance is not "no limit"
+      const isNoLimit = filters.distance >= 999999
+      console.log('🔍 DEBUG: Distance filter check:', {
+        distance: filters.distance,
+        isNoLimit,
+        hasLocation: !!(latitude && longitude)
+      })
+
+      if (latitude && longitude && !isNoLimit) {
         apiFilters.latitude = latitude
         apiFilters.longitude = longitude
         apiFilters.maxDistance = filters.distance
-        console.log('🔍 DEBUG: Location filters applied:', apiFilters)
+        console.log('🔍 DEBUG: Distance filtering ENABLED:', apiFilters)
       } else {
-        console.log('🔍 DEBUG: No distance filtering applied:', {
-          hasLocation: !!(latitude && longitude),
-          distance: filters.distance,
-          isNoLimit: filters.distance >= 999999
+        console.log('🔍 DEBUG: Distance filtering DISABLED:', {
+          reason: isNoLimit ? 'No limit selected' : 'No user location'
         })
       }
 
@@ -330,6 +335,16 @@ export default function Dashboard() {
     }
   }
 
+  const getDistanceStatusText = () => {
+    if (filters.distance >= 999999) {
+      return 'Showing all games worldwide'
+    } else if (latitude && longitude) {
+      return `Within ${filters.distance === 100 ? '100km' : `${filters.distance}km`}`
+    } else {
+      return 'Location access needed for distance filtering'
+    }
+  }
+
   if (loading && games.length === 0) {
     return (
       <div className="h-screen flex flex-col">
@@ -406,11 +421,9 @@ export default function Dashboard() {
             <p className="text-gray-600">
               {games.length} game{games.length !== 1 ? 's' : ''} found
               {loading && <span className="ml-2 text-blue-600">• Loading...</span>}
-              {latitude && longitude && filters.distance < 999999 && (
-                <span className="ml-2 text-gray-500">
-                  • Within {filters.distance === 100 ? '100km' : `${filters.distance}km`}
-                </span>
-              )}
+              <span className="ml-2 text-gray-500">
+                • {getDistanceStatusText()}
+              </span>
             </p>
           </div>
           
@@ -467,8 +480,8 @@ export default function Dashboard() {
               {games.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-gray-400 mb-4">
-                    <svg className="h-16 w-16 mx-auto\" fill="none\" viewBox="0 0 24 24\" stroke="currentColor">
-                      <path strokeLinecap="round\" strokeLinejoin="round\" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <svg className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No games found</h3>

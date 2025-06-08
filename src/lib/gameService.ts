@@ -218,8 +218,8 @@ export const gameService = {
       })
     })
 
-    // Apply distance filter if coordinates provided
-    if (filters?.latitude && filters?.longitude && filters?.maxDistance) {
+    // CRITICAL FIX: Apply distance filter if coordinates provided AND maxDistance is not "no limit"
+    if (filters?.latitude && filters?.longitude && filters?.maxDistance && filters.maxDistance < 999999) {
       console.log('📊 DEBUG: Applying distance filter:', {
         userLat: filters.latitude,
         userLng: filters.longitude,
@@ -240,9 +240,12 @@ export const gameService = {
       
       console.log('📊 DEBUG: After distance filtering:', filteredByDistance.length, 'games')
       return { data: filteredByDistance, error: null }
+    } else if (filters?.maxDistance && filters.maxDistance >= 999999) {
+      console.log('📊 DEBUG: No limit distance filter - showing all games globally')
+    } else {
+      console.log('📊 DEBUG: No distance filtering applied - no coordinates provided')
     }
 
-    console.log('📊 DEBUG: No distance filtering applied')
     console.log('📊 DEBUG: Final result count:', transformedData.length)
     return { data: transformedData, error: null }
   },
