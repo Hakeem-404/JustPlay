@@ -332,8 +332,11 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   )
 }
 
-// Game Popup Component with comprehensive null/undefined checks
+// Game Popup Component with comprehensive debugging and field mapping
 function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (game: Game) => void; onClose: () => void }) {
+  // Debug logging to see actual game data structure
+  console.log('GamePopup - Raw game data:', game)
+  
   // Early return if game is null/undefined
   if (!game) {
     return (
@@ -406,16 +409,29 @@ function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (g
     }
   }
 
-  // Safe property access with fallbacks
+  // Safe property access with fallbacks and field mapping
   const sport = game.sport || 'Unknown Sport'
   const location = game.location || 'Location TBD'
-  const skillLevel = game.skillLevel || 'any'
+  const skillLevel = game.skillLevel || game.skill_level || 'any'
   const date = game.date || ''
   const time = game.time || 'Time TBD'
-  const currentPlayers = game.currentPlayers || 0
-  const maxPlayers = game.maxPlayers || 0
-  const organizerName = game.organizerName || 'Unknown Organizer'
+  
+  // Handle both camelCase and snake_case field names from database
+  const currentPlayers = game.currentPlayers ?? game.current_players ?? 0
+  const maxPlayers = game.maxPlayers ?? game.max_players ?? 0
+  
+  const organizerName = game.organizerName || game.organizer_name || 'Unknown Organizer'
   const description = game.description || ''
+
+  // Debug logging for player count fields
+  console.log('GamePopup - Player count debug:', {
+    currentPlayers: game.currentPlayers,
+    current_players: game.current_players,
+    maxPlayers: game.maxPlayers,
+    max_players: game.max_players,
+    finalCurrentPlayers: currentPlayers,
+    finalMaxPlayers: maxPlayers
+  })
 
   const spotsLeft = Math.max(maxPlayers - currentPlayers, 0)
 
@@ -447,6 +463,9 @@ function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (g
               ({spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left)
             </span>
           )}
+          {spotsLeft === 0 && maxPlayers > 0 && (
+            <span className="ml-2 text-red-600 font-medium">(Full)</span>
+          )}
         </div>
 
         <div className="text-sm text-gray-600">
@@ -460,6 +479,13 @@ function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (g
           {description}
         </p>
       )}
+
+      {/* Debug Info (remove in production) */}
+      <div className="text-xs text-gray-400 mb-4 p-2 bg-gray-50 rounded">
+        <div>Debug: current={currentPlayers}, max={maxPlayers}, spots={spotsLeft}</div>
+        <div>Raw: currentPlayers={game.currentPlayers}, current_players={game.current_players}</div>
+        <div>Raw: maxPlayers={game.maxPlayers}, max_players={game.max_players}</div>
+      </div>
 
       {/* Action Buttons */}
       <div className="flex space-x-2">
@@ -477,14 +503,9 @@ function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (g
               console.error('Error handling game click:', error)
             }
           }}
-          className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-            spotsLeft > 0
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-          }`}
-          disabled={spotsLeft === 0}
+          className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
         >
-          {spotsLeft > 0 ? 'View Details' : 'Game Full'}
+          View Details
         </button>
       </div>
     </div>

@@ -19,6 +19,27 @@ export interface Game {
   updatedAt?: string
 }
 
+// Database interface (snake_case) - for reference
+export interface GameDB {
+  id: string
+  sport: string
+  title?: string
+  location: string
+  latitude: number
+  longitude: number
+  date: string
+  time: string
+  max_players: number
+  current_players: number
+  skill_level: 'beginner' | 'intermediate' | 'advanced' | 'any'
+  description?: string
+  organizer_id: string
+  is_private: boolean
+  status: 'active' | 'cancelled' | 'completed'
+  created_at: string
+  updated_at?: string
+}
+
 export interface GameFormData {
   sport: string
   title: string

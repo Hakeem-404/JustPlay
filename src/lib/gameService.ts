@@ -13,11 +13,11 @@ export const gameService = {
         longitude: gameData.longitude,
         date: gameData.date,
         time: gameData.time,
-        max_players: gameData.maxPlayers,
-        skill_level: gameData.skillLevel,
+        max_players: gameData.maxPlayers, // Use snake_case for database
+        skill_level: gameData.skillLevel, // Use snake_case for database
         description: gameData.description || null,
-        organizer_id: organizerId,
-        is_private: gameData.isPrivate,
+        organizer_id: organizerId, // Use snake_case for database
+        is_private: gameData.isPrivate, // Use snake_case for database
         current_players: 1 // Organizer is automatically a participant
       })
       .select(`
@@ -31,11 +31,30 @@ export const gameService = {
       return { data: null, error }
     }
 
-    // Transform the data to match our Game interface
+    // Transform the data to match our Game interface (camelCase)
     const transformedData: Game = {
-      ...data,
-      organizerName: data.organizer?.name || 'Unknown'
+      id: data.id,
+      sport: data.sport,
+      title: data.title,
+      location: data.location,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      date: data.date,
+      time: data.time,
+      maxPlayers: data.max_players, // Convert to camelCase
+      currentPlayers: data.current_players, // Convert to camelCase
+      skillLevel: data.skill_level, // Convert to camelCase
+      description: data.description,
+      organizerId: data.organizer_id, // Convert to camelCase
+      organizerName: data.organizer?.name || 'Unknown',
+      isPrivate: data.is_private, // Convert to camelCase
+      status: data.status,
+      createdAt: data.created_at, // Convert to camelCase
+      updatedAt: data.updated_at // Convert to camelCase
     }
+
+    console.log('Game created - Raw data:', data)
+    console.log('Game created - Transformed data:', transformedData)
 
     return { data: transformedData, error: null }
   },
@@ -84,11 +103,30 @@ export const gameService = {
       return { data: null, error }
     }
 
-    // Transform the data to match our Game interface
+    // Transform the data to match our Game interface (camelCase)
     const transformedData: Game[] = data?.map(game => ({
-      ...game,
-      organizerName: game.organizer?.name || 'Unknown'
+      id: game.id,
+      sport: game.sport,
+      title: game.title,
+      location: game.location,
+      latitude: game.latitude,
+      longitude: game.longitude,
+      date: game.date,
+      time: game.time,
+      maxPlayers: game.max_players, // Convert to camelCase
+      currentPlayers: game.current_players, // Convert to camelCase
+      skillLevel: game.skill_level, // Convert to camelCase
+      description: game.description,
+      organizerId: game.organizer_id, // Convert to camelCase
+      organizerName: game.organizer?.name || 'Unknown',
+      isPrivate: game.is_private, // Convert to camelCase
+      status: game.status,
+      createdAt: game.created_at, // Convert to camelCase
+      updatedAt: game.updated_at // Convert to camelCase
     })) || []
+
+    console.log('Games fetched - Raw data sample:', data?.[0])
+    console.log('Games fetched - Transformed data sample:', transformedData?.[0])
 
     // Apply distance filter if coordinates provided
     if (filters?.latitude && filters?.longitude && filters?.maxDistance) {
@@ -123,22 +161,52 @@ export const gameService = {
       return { data: null, error }
     }
 
-    // Transform the data to match our Game interface
+    // Transform the data to match our Game interface (camelCase)
     const transformedData: Game[] = data?.map(game => ({
-      ...game,
-      organizerName: game.organizer?.name || 'Unknown'
+      id: game.id,
+      sport: game.sport,
+      title: game.title,
+      location: game.location,
+      latitude: game.latitude,
+      longitude: game.longitude,
+      date: game.date,
+      time: game.time,
+      maxPlayers: game.max_players, // Convert to camelCase
+      currentPlayers: game.current_players, // Convert to camelCase
+      skillLevel: game.skill_level, // Convert to camelCase
+      description: game.description,
+      organizerId: game.organizer_id, // Convert to camelCase
+      organizerName: game.organizer?.name || 'Unknown',
+      isPrivate: game.is_private, // Convert to camelCase
+      status: game.status,
+      createdAt: game.created_at, // Convert to camelCase
+      updatedAt: game.updated_at // Convert to camelCase
     })) || []
 
     return { data: transformedData, error: null }
   },
 
   async updateGame(gameId: string, updates: Partial<GameFormData>): Promise<{ error: any }> {
+    // Convert camelCase to snake_case for database
+    const dbUpdates: any = {
+      updated_at: new Date().toISOString()
+    }
+
+    if (updates.sport) dbUpdates.sport = updates.sport
+    if (updates.title) dbUpdates.title = updates.title
+    if (updates.location) dbUpdates.location = updates.location
+    if (updates.latitude) dbUpdates.latitude = updates.latitude
+    if (updates.longitude) dbUpdates.longitude = updates.longitude
+    if (updates.date) dbUpdates.date = updates.date
+    if (updates.time) dbUpdates.time = updates.time
+    if (updates.maxPlayers) dbUpdates.max_players = updates.maxPlayers
+    if (updates.skillLevel) dbUpdates.skill_level = updates.skillLevel
+    if (updates.description) dbUpdates.description = updates.description
+    if (updates.isPrivate !== undefined) dbUpdates.is_private = updates.isPrivate
+
     const { error } = await supabase
       .from('games')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
+      .update(dbUpdates)
       .eq('id', gameId)
 
     return { error }
@@ -153,14 +221,44 @@ export const gameService = {
     return { error }
   },
 
-  async joinGame(gameId: string): Promise<{ error: any }> {
-    // This would typically involve a separate participants table
-    // For now, we'll just increment current_players
-    const { error } = await supabase.rpc('increment_game_players', {
-      game_id: gameId
-    })
+  async getGameById(gameId: string): Promise<{ data: Game | null; error: any }> {
+    const { data, error } = await supabase
+      .from('games')
+      .select(`
+        *,
+        organizer:profiles!organizer_id(name)
+      `)
+      .eq('id', gameId)
+      .single()
 
-    return { error }
+    if (error) {
+      console.error('Error fetching game:', error)
+      return { data: null, error }
+    }
+
+    // Transform the data to match our Game interface (camelCase)
+    const transformedData: Game = {
+      id: data.id,
+      sport: data.sport,
+      title: data.title,
+      location: data.location,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      date: data.date,
+      time: data.time,
+      maxPlayers: data.max_players, // Convert to camelCase
+      currentPlayers: data.current_players, // Convert to camelCase
+      skillLevel: data.skill_level, // Convert to camelCase
+      description: data.description,
+      organizerId: data.organizer_id, // Convert to camelCase
+      organizerName: data.organizer?.name || 'Unknown',
+      isPrivate: data.is_private, // Convert to camelCase
+      status: data.status,
+      createdAt: data.created_at, // Convert to camelCase
+      updatedAt: data.updated_at // Convert to camelCase
+    }
+
+    return { data: transformedData, error: null }
   }
 }
 
