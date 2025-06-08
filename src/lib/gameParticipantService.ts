@@ -71,13 +71,14 @@ export const gameParticipantService = {
         .eq('game_id', gameId)
         .eq('user_id', userId)
         .in('status', ['joined', 'waitlist'])
-        .single()
+        .maybeSingle() // Use maybeSingle() instead of single() to handle no results
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+      if (error) {
         console.error('Error getting user participation:', error)
         return { data: null, error: error.message }
       }
 
+      // Return null data if user hasn't joined (no error)
       return { data: data || null, error: null }
     } catch (err) {
       console.error('Unexpected error getting user participation:', err)
