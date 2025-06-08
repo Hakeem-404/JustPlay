@@ -56,7 +56,7 @@ export interface GameFormData {
 
 export interface MapFilters {
   sports: string[]
-  distance: number
+  distance: number // Now supports larger values including 999999 for "no limit"
   dateRange: 'today' | 'tomorrow' | 'week' | 'all'
   skillLevel: 'beginner' | 'intermediate' | 'advanced' | 'any' | 'all'
 }

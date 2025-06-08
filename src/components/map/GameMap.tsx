@@ -24,7 +24,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
 
   const [filters, setFilters] = useState<MapFilters>({
     sports: [],
-    distance: 10,
+    distance: 100, // Increased default from 10km to 100km
     dateRange: 'all',
     skillLevel: 'all'
   })
@@ -86,8 +86,8 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
         return false
       }
 
-      // Distance filter (only if user location is available)
-      if (latitude && longitude) {
+      // Distance filter (only if user location is available AND not "no limit")
+      if (latitude && longitude && debouncedFilters.distance < 999999) {
         const distance = calculateDistance(
           latitude, longitude,
           game.latitude, game.longitude
@@ -98,7 +98,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
           return false
         }
       } else {
-        console.log(`🗺️ DEBUG: Game ${game.id} - no distance filter (no user location)`)
+        console.log(`🗺️ DEBUG: Game ${game.id} - no distance filter applied (no location or no limit)`)
       }
 
       // Date filter
@@ -151,10 +151,10 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     console.log('🗺️ DEBUG: Filtered games result:', filtered.length)
     console.log('🗺️ DEBUG: Filtered game IDs:', filtered.map(g => g.id))
     
-    // Limit to 20 games for performance
-    const limited = filtered.slice(0, 20)
+    // Limit to 50 games for performance (increased from 20)
+    const limited = filtered.slice(0, 50)
     if (limited.length < filtered.length) {
-      console.log('🗺️ DEBUG: Limited to first 20 games for performance')
+      console.log('🗺️ DEBUG: Limited to first 50 games for performance')
     }
     
     return limited
@@ -397,7 +397,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
       <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-sm px-3 py-2 z-[1000]">
         <span className="text-sm text-gray-600">
           {filteredGames.length} game{filteredGames.length !== 1 ? 's' : ''} found
-          {filteredGames.length === 20 && games.length > 20 && ' (showing first 20)'}
+          {filteredGames.length === 50 && games.length > 50 && ' (showing first 50)'}
         </span>
       </div>
     </div>

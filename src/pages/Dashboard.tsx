@@ -22,7 +22,7 @@ export default function Dashboard() {
 
   const [filters, setFilters] = useState<MapFilters>({
     sports: [],
-    distance: 10,
+    distance: 100, // Increased default from 10km to 100km
     dateRange: 'all',
     skillLevel: 'all'
   })
@@ -52,13 +52,18 @@ export default function Dashboard() {
       // Build filter object for API
       const apiFilters: any = {}
       
-      if (latitude && longitude) {
+      // Only apply distance filter if user location is available AND distance is not "no limit"
+      if (latitude && longitude && filters.distance < 999999) {
         apiFilters.latitude = latitude
         apiFilters.longitude = longitude
         apiFilters.maxDistance = filters.distance
         console.log('🔍 DEBUG: Location filters applied:', apiFilters)
       } else {
-        console.log('🔍 DEBUG: No user location available - no distance filtering')
+        console.log('🔍 DEBUG: No distance filtering applied:', {
+          hasLocation: !!(latitude && longitude),
+          distance: filters.distance,
+          isNoLimit: filters.distance >= 999999
+        })
       }
 
       // Date filtering
@@ -112,6 +117,9 @@ export default function Dashboard() {
       
       if (data && data.length > 0) {
         data.forEach((game, index) => {
+          const distance = latitude && longitude ? 
+            calculateDistance(latitude, longitude, game.latitude, game.longitude) : null
+          
           console.log(`🔍 DEBUG: Game ${index + 1}:`, {
             id: game.id,
             sport: game.sport,
@@ -124,7 +132,8 @@ export default function Dashboard() {
             skillLevel: game.skillLevel,
             status: game.status,
             isPrivate: game.isPrivate,
-            organizerId: game.organizerId
+            organizerId: game.organizerId,
+            distance: distance ? `${distance.toFixed(1)}km` : 'N/A'
           })
         })
       } else {
@@ -150,73 +159,6 @@ export default function Dashboard() {
       } else {
         console.log('🔍 DEBUG: No sports filter applied')
       }
-
-      // Additional frontend filtering that might be happening
-      console.log('🔍 DEBUG: ===== CHECKING EACH GAME INDIVIDUALLY =====')
-      
-      filteredGames.forEach((game, index) => {
-        console.log(`🔍 DEBUG: ===== GAME ${index + 1} ANALYSIS =====`)
-        console.log(`🔍 DEBUG: Game ID: ${game.id}`)
-        console.log(`🔍 DEBUG: Sport: ${game.sport}`)
-        console.log(`🔍 DEBUG: Location: ${game.location}`)
-        console.log(`🔍 DEBUG: Date: ${game.date}`)
-        console.log(`🔍 DEBUG: Time: ${game.time}`)
-        console.log(`🔍 DEBUG: Status: ${game.status}`)
-        console.log(`🔍 DEBUG: Is Private: ${game.isPrivate}`)
-        console.log(`🔍 DEBUG: Coordinates: ${game.latitude}, ${game.longitude}`)
-        
-        // Check if game is in the future
-        const gameDate = new Date(game.date)
-        const isInFuture = gameDate >= today
-        const daysDifference = Math.ceil((gameDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-        console.log(`🔍 DEBUG: Date check:`, {
-          gameDate: gameDate.toISOString().split('T')[0],
-          today: todayString,
-          isInFuture,
-          daysDifference: daysDifference + ' days'
-        })
-
-        // Check time parsing
-        try {
-          const gameDateTime = new Date(`${game.date}T${game.time}`)
-          const isValidDateTime = !isNaN(gameDateTime.getTime())
-          console.log(`🔍 DEBUG: DateTime parsing:`, {
-            combined: `${game.date}T${game.time}`,
-            parsed: gameDateTime.toISOString(),
-            isValid: isValidDateTime
-          })
-        } catch (err) {
-          console.log(`🔍 DEBUG: DateTime parsing ERROR:`, err)
-        }
-
-        // Calculate distance if user location available
-        if (latitude && longitude) {
-          const distance = calculateDistance(
-            latitude, longitude,
-            game.latitude, game.longitude
-          )
-          const withinRadius = distance <= filters.distance
-          console.log(`🔍 DEBUG: Distance check:`, {
-            userLocation: `${latitude}, ${longitude}`,
-            gameLocation: `${game.latitude}, ${game.longitude}`,
-            distance: distance.toFixed(2) + ' km',
-            maxDistance: filters.distance + ' km',
-            withinRadius
-          })
-        } else {
-          console.log(`🔍 DEBUG: No distance check (no user location)`)
-        }
-
-        // Check skill level
-        const skillLevelMatch = filters.skillLevel === 'all' || game.skillLevel === filters.skillLevel || game.skillLevel === 'any'
-        console.log(`🔍 DEBUG: Skill level check:`, {
-          gameSkillLevel: game.skillLevel,
-          filterSkillLevel: filters.skillLevel,
-          matches: skillLevelMatch
-        })
-
-        console.log(`🔍 DEBUG: ===== END GAME ${index + 1} ANALYSIS =====`)
-      })
 
       console.log('🔍 DEBUG: ===== FINAL RESULTS =====')
       console.log('🔍 DEBUG: Games being set in state:', filteredGames.length)
@@ -372,6 +314,22 @@ export default function Dashboard() {
     return user && game.organizerId === user.id
   }
 
+  const getGameDistance = (game: Game) => {
+    if (!latitude || !longitude) return null
+    const distance = calculateDistance(latitude, longitude, game.latitude, game.longitude)
+    return distance
+  }
+
+  const formatDistance = (distance: number) => {
+    if (distance < 1) {
+      return `${Math.round(distance * 1000)}m away`
+    } else if (distance < 10) {
+      return `${distance.toFixed(1)}km away`
+    } else {
+      return `${Math.round(distance)}km away`
+    }
+  }
+
   if (loading && games.length === 0) {
     return (
       <div className="h-screen flex flex-col">
@@ -448,6 +406,11 @@ export default function Dashboard() {
             <p className="text-gray-600">
               {games.length} game{games.length !== 1 ? 's' : ''} found
               {loading && <span className="ml-2 text-blue-600">• Loading...</span>}
+              {latitude && longitude && filters.distance < 999999 && (
+                <span className="ml-2 text-gray-500">
+                  • Within {filters.distance === 100 ? '100km' : `${filters.distance}km`}
+                </span>
+              )}
             </p>
           </div>
           
@@ -526,6 +489,7 @@ export default function Dashboard() {
                     const spotsLeft = game.maxPlayers - game.currentPlayers
                     const participationStatus = getParticipationStatus(game.id)
                     const isOrganizer = isUserOrganizer(game)
+                    const distance = getGameDistance(game)
                     
                     return (
                       <div
@@ -550,6 +514,11 @@ export default function Dashboard() {
                             <div className="flex items-center text-gray-600 mb-2">
                               <MapPin className="h-4 w-4 mr-1" />
                               <span className="truncate">{game.location}</span>
+                              {distance && (
+                                <span className="ml-2 text-sm text-gray-500">
+                                  • {formatDistance(distance)}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSkillLevelColor(game.skillLevel)}`}>
