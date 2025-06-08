@@ -1,6 +1,7 @@
 import React from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { Play, Menu, X, User } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Play, Menu, X, User, LogOut, Settings } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -8,11 +9,29 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false)
+  const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
+  const { user, signOut, loading } = useAuth()
 
   const isActive = (path: string) => location.pathname === path
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen)
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      navigate('/')
+      setIsUserMenuOpen(false)
+    } catch (error) {
+      console.error('Error signing out:', error)
+    }
+  }
+
+  const getUserDisplayName = () => {
+    if (!user) return ''
+    return user.email?.split('@')[0] || 'User'
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -43,33 +62,79 @@ export default function Layout({ children }: LayoutProps) {
                 >
                   Home
                 </Link>
-                <Link
-                  to="/dashboard"
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    isActive('/dashboard') 
-                      ? 'text-blue-600 bg-blue-50' 
-                      : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
-                  }`}
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  to="/create-game"
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    isActive('/create-game') 
-                      ? 'text-blue-600 bg-blue-50' 
-                      : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
-                  }`}
-                >
-                  Create Game
-                </Link>
-                <Link
-                  to="/login"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2"
-                >
-                  <User className="h-4 w-4" />
-                  <span>Login</span>
-                </Link>
+                
+                {user && (
+                  <>
+                    <Link
+                      to="/dashboard"
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        isActive('/dashboard') 
+                          ? 'text-blue-600 bg-blue-50' 
+                          : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
+                      to="/create-game"
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        isActive('/create-game') 
+                          ? 'text-blue-600 bg-blue-50' 
+                          : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      Create Game
+                    </Link>
+                  </>
+                )}
+
+                {/* User Menu or Login Button */}
+                {user ? (
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                      className="flex items-center space-x-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                    >
+                      <User className="h-4 w-4" />
+                      <span>{getUserDisplayName()}</span>
+                    </button>
+
+                    {/* User Dropdown */}
+                    {isUserMenuOpen && (
+                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                        <div className="px-4 py-2 border-b border-gray-100">
+                          <p className="text-sm font-medium text-gray-900">{getUserDisplayName()}</p>
+                          <p className="text-xs text-gray-500">{user.email}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setIsUserMenuOpen(false)
+                            // Add profile navigation here when implemented
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                        >
+                          <Settings className="h-4 w-4" />
+                          <span>Profile Settings</span>
+                        </button>
+                        <button
+                          onClick={handleSignOut}
+                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          <span>Sign Out</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <Link
+                    to="/login"
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                  >
+                    <User className="h-4 w-4" />
+                    <span>Login</span>
+                  </Link>
+                )}
               </div>
             </div>
 
@@ -99,40 +164,73 @@ export default function Layout({ children }: LayoutProps) {
                 >
                   Home
                 </Link>
-                <Link
-                  to="/dashboard"
-                  className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
-                    isActive('/dashboard') 
-                      ? 'text-blue-600 bg-blue-50' 
-                      : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
-                  }`}
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  to="/create-game"
-                  className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
-                    isActive('/create-game') 
-                      ? 'text-blue-600 bg-blue-50' 
-                      : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
-                  }`}
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Create Game
-                </Link>
-                <Link
-                  to="/login"
-                  className="block bg-blue-600 text-white px-3 py-2 rounded-md text-base font-medium hover:bg-blue-700 transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Login
-                </Link>
+                
+                {user && (
+                  <>
+                    <Link
+                      to="/dashboard"
+                      className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                        isActive('/dashboard') 
+                          ? 'text-blue-600 bg-blue-50' 
+                          : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                      }`}
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
+                      to="/create-game"
+                      className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                        isActive('/create-game') 
+                          ? 'text-blue-600 bg-blue-50' 
+                          : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                      }`}
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Create Game
+                    </Link>
+                    
+                    {/* Mobile User Info */}
+                    <div className="border-t border-gray-200 pt-2 mt-2">
+                      <div className="px-3 py-2">
+                        <p className="text-sm font-medium text-gray-900">{getUserDisplayName()}</p>
+                        <p className="text-xs text-gray-500">{user.email}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          handleSignOut()
+                          setIsMenuOpen(false)
+                        }}
+                        className="block w-full text-left px-3 py-2 text-base font-medium text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {!user && (
+                  <Link
+                    to="/login"
+                    className="block bg-blue-600 text-white px-3 py-2 rounded-md text-base font-medium hover:bg-blue-700 transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Login
+                  </Link>
+                )}
               </div>
             </div>
           )}
         </div>
       </nav>
+
+      {/* Click outside to close user menu */}
+      {isUserMenuOpen && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setIsUserMenuOpen(false)}
+        />
+      )}
 
       {/* Main Content */}
       <main>{children}</main>
