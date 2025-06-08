@@ -54,7 +54,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
     }
   }, [isOpen, game, user])
 
-  // Close modal on escape key
+  // Close modal on escape key and handle body scroll
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
@@ -268,7 +268,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
   if (!isOpen || !game) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
       {/* Overlay click to close */}
       <div 
         className="absolute inset-0" 
@@ -276,9 +276,9 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
         aria-label="Close modal"
       />
       
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden relative">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden relative z-[10000]">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-2xl">
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-2xl z-[10001]">
           <div className="flex items-start justify-between">
             <div className="flex-1 pr-4">
               <h1 className="text-2xl font-bold text-gray-900 mb-2">
@@ -501,7 +501,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
         </div>
 
         {/* Footer Actions */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 rounded-b-2xl">
+        <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 rounded-b-2xl z-[10001]">
           {showLeaveConfirm ? (
             <div className="space-y-4">
               <div className="text-center">
