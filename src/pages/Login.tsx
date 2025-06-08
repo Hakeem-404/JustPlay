@@ -129,7 +129,7 @@ export default function Login() {
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center bg-blue-600 p-3 rounded-xl mb-4">
-                <Play className="h-8 w-8 text-white" fill="white" />
+                <Play className="h-8 w-8 text-white\" fill="white" />
               </div>
               <h2 className="text-3xl font-bold text-gray-900">Reset Password</h2>
               <p className="text-gray-600 mt-2">

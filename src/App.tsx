@@ -19,7 +19,7 @@ function App() {
             element={
               <Layout>
                 <Routes>
-                  <Route path="/" element={<Landing />} />
+                  <Route path="/\" element={<Landing />} />
                   <Route 
                     path="/dashboard" 
                     element={
