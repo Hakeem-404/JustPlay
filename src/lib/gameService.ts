@@ -5,59 +5,84 @@ export const gameService = {
   async createGame(gameData: GameFormData, organizerId: string): Promise<{ data: Game | null; error: any }> {
     console.log('🎮 Creating new game:', gameData)
     
-    const { data, error } = await supabase
-      .from('games')
-      .insert({
-        sport: gameData.sport,
-        title: gameData.title || null,
-        location: gameData.location,
-        latitude: gameData.latitude,
-        longitude: gameData.longitude,
-        date: gameData.date,
-        time: gameData.time,
-        max_players: gameData.maxPlayers, // Use snake_case for database
-        skill_level: gameData.skillLevel, // Use snake_case for database
-        description: gameData.description || null,
-        organizer_id: organizerId, // Use snake_case for database
-        is_private: gameData.isPrivate, // Use snake_case for database
-        current_players: 1 // Organizer is automatically a participant
-      })
-      .select(`
-        *,
-        organizer:profiles!organizer_id(name)
-      `)
-      .single()
+    try {
+      // Start a transaction by creating the game first
+      const { data: gameRecord, error: gameError } = await supabase
+        .from('games')
+        .insert({
+          sport: gameData.sport,
+          title: gameData.title || null,
+          location: gameData.location,
+          latitude: gameData.latitude,
+          longitude: gameData.longitude,
+          date: gameData.date,
+          time: gameData.time,
+          max_players: gameData.maxPlayers,
+          skill_level: gameData.skillLevel,
+          description: gameData.description || null,
+          organizer_id: organizerId,
+          is_private: gameData.isPrivate,
+          current_players: 1 // Start with 1 (the organizer)
+        })
+        .select(`
+          *,
+          organizer:profiles!organizer_id(name)
+        `)
+        .single()
 
-    if (error) {
-      console.error('❌ Error creating game:', error)
-      return { data: null, error }
+      if (gameError) {
+        console.error('❌ Error creating game:', gameError)
+        return { data: null, error: gameError }
+      }
+
+      console.log('✅ Game created successfully:', gameRecord)
+
+      // Now add the organizer as a participant with special status
+      const { error: participantError } = await supabase
+        .from('game_participants')
+        .insert({
+          game_id: gameRecord.id,
+          user_id: organizerId,
+          status: 'joined', // Organizer is always 'joined'
+          joined_at: new Date().toISOString()
+        })
+
+      if (participantError) {
+        console.error('❌ Error adding organizer as participant:', participantError)
+        // Try to clean up the game if participant insertion fails
+        await supabase.from('games').delete().eq('id', gameRecord.id)
+        return { data: null, error: participantError }
+      }
+
+      console.log('✅ Organizer added as participant successfully')
+
+      // Transform the data to match our Game interface (camelCase)
+      const transformedData: Game = {
+        id: gameRecord.id,
+        sport: gameRecord.sport,
+        title: gameRecord.title,
+        location: gameRecord.location,
+        latitude: gameRecord.latitude,
+        longitude: gameRecord.longitude,
+        date: gameRecord.date,
+        time: gameRecord.time,
+        maxPlayers: gameRecord.max_players,
+        currentPlayers: gameRecord.current_players, // This is 1 (organizer)
+        skillLevel: gameRecord.skill_level,
+        description: gameRecord.description,
+        organizerId: gameRecord.organizer_id,
+        organizerName: gameRecord.organizer?.name || 'Unknown',
+        isPrivate: gameRecord.is_private,
+        status: gameRecord.status,
+        createdAt: gameRecord.created_at,
+        updatedAt: gameRecord.updated_at
+      }
+
+      return { data: transformedData, error: null }
+    } catch (err) {
+      console.error('💥 Unexpected error creating game:', err)
+      return { data: null, error: err }
     }
-
-    console.log('✅ Game created successfully:', data)
-
-    // Transform the data to match our Game interface (camelCase)
-    const transformedData: Game = {
-      id: data.id,
-      sport: data.sport,
-      title: data.title,
-      location: data.location,
-      latitude: data.latitude,
-      longitude: data.longitude,
-      date: data.date,
-      time: data.time,
-      maxPlayers: data.max_players, // Convert to camelCase
-      currentPlayers: data.current_players, // Convert to camelCase
-      skillLevel: data.skill_level, // Convert to camelCase
-      description: data.description,
-      organizerId: data.organizer_id, // Convert to camelCase
-      organizerName: data.organizer?.name || 'Unknown',
-      isPrivate: data.is_private, // Convert to camelCase
-      status: data.status,
-      createdAt: data.created_at, // Convert to camelCase
-      updatedAt: data.updated_at // Convert to camelCase
-    }
-
-    return { data: transformedData, error: null }
   },
 
   async getGames(filters?: {
@@ -118,16 +143,16 @@ export const gameService = {
       longitude: game.longitude,
       date: game.date,
       time: game.time,
-      maxPlayers: game.max_players, // Convert to camelCase
-      currentPlayers: game.current_players, // Convert to camelCase
-      skillLevel: game.skill_level, // Convert to camelCase
+      maxPlayers: game.max_players,
+      currentPlayers: game.current_players, // Includes organizer
+      skillLevel: game.skill_level,
       description: game.description,
-      organizerId: game.organizer_id, // Convert to camelCase
+      organizerId: game.organizer_id,
       organizerName: game.organizer?.name || 'Unknown',
-      isPrivate: game.is_private, // Convert to camelCase
+      isPrivate: game.is_private,
       status: game.status,
-      createdAt: game.created_at, // Convert to camelCase
-      updatedAt: game.updated_at // Convert to camelCase
+      createdAt: game.created_at,
+      updatedAt: game.updated_at
     })) || []
 
     // Apply distance filter if coordinates provided
@@ -177,16 +202,16 @@ export const gameService = {
       longitude: game.longitude,
       date: game.date,
       time: game.time,
-      maxPlayers: game.max_players, // Convert to camelCase
-      currentPlayers: game.current_players, // Convert to camelCase
-      skillLevel: game.skill_level, // Convert to camelCase
+      maxPlayers: game.max_players,
+      currentPlayers: game.current_players, // Includes organizer
+      skillLevel: game.skill_level,
       description: game.description,
-      organizerId: game.organizer_id, // Convert to camelCase
+      organizerId: game.organizer_id,
       organizerName: game.organizer?.name || 'Unknown',
-      isPrivate: game.is_private, // Convert to camelCase
+      isPrivate: game.is_private,
       status: game.status,
-      createdAt: game.created_at, // Convert to camelCase
-      updatedAt: game.updated_at // Convert to camelCase
+      createdAt: game.created_at,
+      updatedAt: game.updated_at
     })) || []
 
     return { data: transformedData, error: null }
@@ -272,16 +297,16 @@ export const gameService = {
       longitude: data.longitude,
       date: data.date,
       time: data.time,
-      maxPlayers: data.max_players, // Convert to camelCase
-      currentPlayers: data.current_players, // Convert to camelCase
-      skillLevel: data.skill_level, // Convert to camelCase
+      maxPlayers: data.max_players,
+      currentPlayers: data.current_players, // Includes organizer
+      skillLevel: data.skill_level,
       description: data.description,
-      organizerId: data.organizer_id, // Convert to camelCase
+      organizerId: data.organizer_id,
       organizerName: data.organizer?.name || 'Unknown',
-      isPrivate: data.is_private, // Convert to camelCase
+      isPrivate: data.is_private,
       status: data.status,
-      createdAt: data.created_at, // Convert to camelCase
-      updatedAt: data.updated_at // Convert to camelCase
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
     }
 
     return { data: transformedData, error: null }

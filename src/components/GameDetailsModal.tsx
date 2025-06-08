@@ -85,7 +85,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
         console.log('👤 GameDetailsModal: User participation status:', newStatus)
         setUserParticipation(newStatus)
 
-        // Update the game's current player count
+        // Update the game's current player count (total participants including organizer)
         if (currentGame) {
           const joinedCount = updatedParticipants.filter(p => p.status === 'joined').length
           console.log('📊 GameDetailsModal: Updating game player count to:', joinedCount)
@@ -176,7 +176,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
         console.log('👤 GameDetailsModal: User participation status:', status)
         setUserParticipation(status)
 
-        // Update current game player count
+        // Update current game player count (total participants including organizer)
         const joinedCount = data?.filter(p => p.status === 'joined').length || 0
         console.log('📊 GameDetailsModal: Current joined count:', joinedCount)
         
@@ -366,8 +366,15 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
     return true
   }
 
+  const isUserOrganizer = () => {
+    return currentGame && user && currentGame.organizerId === user.id
+  }
+
   const joinedParticipants = participants.filter(p => p.status === 'joined')
   const waitlistParticipants = participants.filter(p => p.status === 'waitlist')
+
+  // Calculate spots left (total participants vs max players)
+  const spotsLeft = currentGame ? Math.max(currentGame.maxPlayers - currentGame.currentPlayers, 0) : 0
 
   // Use currentGame instead of game for all displays
   const displayGame = currentGame || game
@@ -458,6 +465,9 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                     <p className="text-gray-600">
                       {displayGame.currentPlayers}/{displayGame.maxPlayers} joined
                       {isGameFull() && <span className="text-red-600 ml-2">(Full)</span>}
+                      {spotsLeft > 0 && (
+                        <span className="text-green-600 ml-2">({spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left)</span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -656,52 +666,67 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
               
               {user && (
                 <>
-                  {userParticipation === 'none' && canJoinGame() && (
-                    <button
-                      onClick={handleJoinGame}
-                      disabled={actionLoading}
-                      className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
-                    >
-                      {actionLoading ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      ) : (
-                        <>
-                          <UserPlus className="h-4 w-4" />
-                          <span>{isGameFull() ? 'Join Waitlist' : 'Join Game'}</span>
-                        </>
-                      )}
-                    </button>
-                  )}
-
-                  {userParticipation === 'joined' && (
-                    <button
-                      onClick={() => setShowLeaveConfirm(true)}
-                      className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
-                    >
-                      <UserMinus className="h-4 w-4" />
-                      <span>Leave Game</span>
-                    </button>
-                  )}
-
-                  {userParticipation === 'waitlist' && (
-                    <button
-                      onClick={() => setShowLeaveConfirm(true)}
-                      className="flex-1 bg-yellow-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-yellow-700 transition-colors flex items-center justify-center space-x-2"
-                    >
-                      <UserMinus className="h-4 w-4" />
-                      <span>Leave Waitlist</span>
-                    </button>
-                  )}
-
-                  {!canJoinGame() && userParticipation === 'none' && (
+                  {/* Show "Your Game" for organizers */}
+                  {isUserOrganizer() && (
                     <button
                       disabled
-                      className="flex-1 bg-gray-300 text-gray-500 py-3 px-4 rounded-lg font-medium cursor-not-allowed"
+                      className="flex-1 bg-blue-100 text-blue-700 py-3 px-4 rounded-lg font-medium cursor-default flex items-center justify-center space-x-2"
                     >
-                      {isGameInPast() ? 'Game Ended' : 
-                       displayGame.organizerId === user.id ? 'Your Game' : 
-                       displayGame.status !== 'active' ? 'Game Inactive' : 'Cannot Join'}
+                      <Crown className="h-4 w-4" />
+                      <span>Your Game</span>
                     </button>
+                  )}
+
+                  {/* Show join/leave buttons for non-organizers */}
+                  {!isUserOrganizer() && (
+                    <>
+                      {userParticipation === 'none' && canJoinGame() && (
+                        <button
+                          onClick={handleJoinGame}
+                          disabled={actionLoading}
+                          className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+                        >
+                          {actionLoading ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          ) : (
+                            <>
+                              <UserPlus className="h-4 w-4" />
+                              <span>{isGameFull() ? 'Join Waitlist' : 'Join Game'}</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {userParticipation === 'joined' && (
+                        <button
+                          onClick={() => setShowLeaveConfirm(true)}
+                          className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
+                        >
+                          <UserMinus className="h-4 w-4" />
+                          <span>Leave Game</span>
+                        </button>
+                      )}
+
+                      {userParticipation === 'waitlist' && (
+                        <button
+                          onClick={() => setShowLeaveConfirm(true)}
+                          className="flex-1 bg-yellow-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-yellow-700 transition-colors flex items-center justify-center space-x-2"
+                        >
+                          <UserMinus className="h-4 w-4" />
+                          <span>Leave Waitlist</span>
+                        </button>
+                      )}
+
+                      {!canJoinGame() && userParticipation === 'none' && (
+                        <button
+                          disabled
+                          className="flex-1 bg-gray-300 text-gray-500 py-3 px-4 rounded-lg font-medium cursor-not-allowed"
+                        >
+                          {isGameInPast() ? 'Game Ended' : 
+                           displayGame.status !== 'active' ? 'Game Inactive' : 'Cannot Join'}
+                        </button>
+                      )}
+                    </>
                   )}
                 </>
               )}

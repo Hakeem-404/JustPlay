@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, List, Map as MapIcon, AlertCircle, RefreshCw, Users, Calendar, MapPin, Clock, User, Star } from 'lucide-react'
+import { Plus, List, Map as MapIcon, AlertCircle, RefreshCw, Users, Calendar, MapPin, Clock, User, Star, Crown } from 'lucide-react'
 import GameMap from '../components/map/GameMap'
 import GameDetailsModal from '../components/GameDetailsModal'
 import { gameService } from '../lib/gameService'
@@ -210,6 +210,10 @@ export default function Dashboard() {
     }
   }
 
+  const isUserOrganizer = (game: Game) => {
+    return user && game.organizerId === user.id
+  }
+
   if (loading && games.length === 0) {
     return (
       <div className="h-screen flex flex-col">
@@ -340,8 +344,8 @@ export default function Dashboard() {
               {games.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-gray-400 mb-4">
-                    <svg className="h-16 w-16 mx-auto\" fill="none\" viewBox="0 0 24 24\" stroke="currentColor">
-                      <path strokeLinecap="round\" strokeLinejoin="round\" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <svg className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No games found</h3>
@@ -361,7 +365,7 @@ export default function Dashboard() {
                   {games.map((game) => {
                     const spotsLeft = game.maxPlayers - game.currentPlayers
                     const participationStatus = getParticipationStatus(game.id)
-                    const isOrganizer = user?.id === game.organizerId
+                    const isOrganizer = isUserOrganizer(game)
                     
                     return (
                       <div
@@ -378,7 +382,7 @@ export default function Dashboard() {
                               {getParticipationBadge(game.id)}
                               {isOrganizer && (
                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                                  <Star className="h-3 w-3 mr-1" />
+                                  <Crown className="h-3 w-3 mr-1" />
                                   Organizer
                                 </span>
                               )}
