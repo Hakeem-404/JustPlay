@@ -1,31 +1,57 @@
-import React from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowLeft, MapPin, Calendar, Clock, Users, Info } from 'lucide-react'
+import React, { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, MapPin, Calendar, Clock, Users, Info, Target } from 'lucide-react'
+import LocationPicker from '../components/map/LocationPicker'
+import { GameFormData } from '../types/game'
 
 export default function CreateGame() {
-  const [gameData, setGameData] = React.useState({
+  const navigate = useNavigate()
+  const [showLocationPicker, setShowLocationPicker] = useState(false)
+  const [gameData, setGameData] = useState<GameFormData>({
     sport: '',
+    title: '',
     location: '',
+    latitude: undefined,
+    longitude: undefined,
     date: '',
     time: '',
-    maxPlayers: '',
-    skillLevel: '',
+    maxPlayers: 10,
+    skillLevel: 'any',
     description: '',
     isPrivate: false
   })
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target
+  const handleInputChange = (field: keyof GameFormData, value: any) => {
     setGameData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+      [field]: value
     }))
+  }
+
+  const handleLocationSelect = (location: { latitude: number; longitude: number; address: string }) => {
+    setGameData(prev => ({
+      ...prev,
+      location: location.address,
+      latitude: location.latitude,
+      longitude: location.longitude
+    }))
+    setShowLocationPicker(false)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle form submission
-    console.log('Game data:', gameData)
+    
+    // Validate required fields
+    if (!gameData.sport || !gameData.location || !gameData.date || !gameData.time) {
+      alert('Please fill in all required fields')
+      return
+    }
+
+    // TODO: Submit game data to backend
+    console.log('Creating game:', gameData)
+    
+    // For now, just navigate back to dashboard
+    navigate('/dashboard')
   }
 
   return (
@@ -53,20 +79,38 @@ export default function CreateGame() {
             </label>
             <select
               id="sport"
-              name="sport"
               required
               value={gameData.sport}
-              onChange={handleInputChange}
+              onChange={(e) => handleInputChange('sport', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             >
               <option value="">Select a sport</option>
-              <option value="basketball">Basketball</option>
-              <option value="soccer">Soccer</option>
-              <option value="tennis">Tennis</option>
-              <option value="baseball">Baseball</option>
-              <option value="volleyball">Volleyball</option>
-              <option value="football">Football</option>
+              <option value="Basketball">Basketball</option>
+              <option value="Soccer">Soccer</option>
+              <option value="Tennis">Tennis</option>
+              <option value="Baseball">Baseball</option>
+              <option value="Volleyball">Volleyball</option>
+              <option value="Football">Football</option>
+              <option value="Hockey">Hockey</option>
+              <option value="Golf">Golf</option>
+              <option value="Swimming">Swimming</option>
+              <option value="Running">Running</option>
             </select>
+          </div>
+
+          {/* Game Title */}
+          <div>
+            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
+              Game Title
+            </label>
+            <input
+              type="text"
+              id="title"
+              value={gameData.title}
+              onChange={(e) => handleInputChange('title', e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+              placeholder="e.g., Pickup Basketball, Sunday Soccer"
+            />
           </div>
 
           {/* Location */}
@@ -74,19 +118,33 @@ export default function CreateGame() {
             <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-2">
               Location *
             </label>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                id="location"
-                name="location"
-                required
-                value={gameData.location}
-                onChange={handleInputChange}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                placeholder="Enter the game location"
-              />
+            <div className="flex space-x-2">
+              <div className="flex-1 relative">
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  type="text"
+                  id="location"
+                  required
+                  value={gameData.location}
+                  onChange={(e) => handleInputChange('location', e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                  placeholder="Enter the game location"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLocationPicker(true)}
+                className="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <MapPin className="h-4 w-4" />
+                <span className="hidden sm:inline">Pick on Map</span>
+              </button>
             </div>
+            {gameData.latitude && gameData.longitude && (
+              <p className="text-sm text-green-600 mt-1">
+                ✓ Location coordinates set ({gameData.latitude.toFixed(4)}, {gameData.longitude.toFixed(4)})
+              </p>
+            )}
           </div>
 
           {/* Date and Time */}
@@ -100,10 +158,10 @@ export default function CreateGame() {
                 <input
                   type="date"
                   id="date"
-                  name="date"
                   required
                   value={gameData.date}
-                  onChange={handleInputChange}
+                  onChange={(e) => handleInputChange('date', e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                 />
               </div>
@@ -117,10 +175,9 @@ export default function CreateGame() {
                 <input
                   type="time"
                   id="time"
-                  name="time"
                   required
                   value={gameData.time}
-                  onChange={handleInputChange}
+                  onChange={(e) => handleInputChange('time', e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                 />
               </div>
@@ -138,14 +195,12 @@ export default function CreateGame() {
                 <input
                   type="number"
                   id="maxPlayers"
-                  name="maxPlayers"
                   required
                   min="2"
                   max="50"
                   value={gameData.maxPlayers}
-                  onChange={handleInputChange}
+                  onChange={(e) => handleInputChange('maxPlayers', parseInt(e.target.value))}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                  placeholder="e.g. 10"
                 />
               </div>
             </div>
@@ -153,18 +208,20 @@ export default function CreateGame() {
               <label htmlFor="skillLevel" className="block text-sm font-medium text-gray-700 mb-2">
                 Skill Level
               </label>
-              <select
-                id="skillLevel"
-                name="skillLevel"
-                value={gameData.skillLevel}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-              >
-                <option value="">Any Level</option>
-                <option value="beginner">Beginner</option>
-                <option value="intermediate">Intermediate</option>
-                <option value="advanced">Advanced</option>
-              </select>
+              <div className="relative">
+                <Target className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <select
+                  id="skillLevel"
+                  value={gameData.skillLevel}
+                  onChange={(e) => handleInputChange('skillLevel', e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                >
+                  <option value="any">Any Level</option>
+                  <option value="beginner">Beginner</option>
+                  <option value="intermediate">Intermediate</option>
+                  <option value="advanced">Advanced</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -177,10 +234,9 @@ export default function CreateGame() {
               <Info className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
               <textarea
                 id="description"
-                name="description"
                 rows={4}
                 value={gameData.description}
-                onChange={handleInputChange}
+                onChange={(e) => handleInputChange('description', e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors resize-none"
                 placeholder="Add any additional details about the game..."
               />
@@ -192,9 +248,8 @@ export default function CreateGame() {
             <input
               type="checkbox"
               id="isPrivate"
-              name="isPrivate"
               checked={gameData.isPrivate}
-              onChange={handleInputChange}
+              onChange={(e) => handleInputChange('isPrivate', e.target.checked)}
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
             />
             <label htmlFor="isPrivate" className="text-sm font-medium text-gray-700">
@@ -224,12 +279,25 @@ export default function CreateGame() {
       <div className="mt-8 bg-blue-50 border border-blue-200 rounded-xl p-6">
         <h3 className="font-semibold text-blue-900 mb-3">Tips for a Great Game</h3>
         <ul className="space-y-2 text-blue-800 text-sm">
+          <li>• Use the map picker to set exact coordinates for easy finding</li>
           <li>• Be specific about the location and include parking information</li>
           <li>• Set realistic player limits based on the sport and venue</li>
           <li>• Include skill level to help players decide if it's a good fit</li>
-          <li>• Add contact information or meeting instructions</li>
+          <li>• Add contact information or meeting instructions in the description</li>
         </ul>
       </div>
+
+      {/* Location Picker Modal */}
+      {showLocationPicker && (
+        <LocationPicker
+          onLocationSelect={handleLocationSelect}
+          onCancel={() => setShowLocationPicker(false)}
+          initialLocation={gameData.latitude && gameData.longitude ? {
+            latitude: gameData.latitude,
+            longitude: gameData.longitude
+          } : undefined}
+        />
+      )}
     </div>
   )
 }
