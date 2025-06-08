@@ -14,7 +14,8 @@ import {
   UserPlus,
   UserMinus,
   ExternalLink,
-  Crown
+  Crown,
+  Ban
 } from 'lucide-react'
 import { Game } from '../types/game'
 import { useAuth } from '../contexts/AuthContext'
@@ -47,6 +48,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [currentGame, setCurrentGame] = useState<Game | null>(null)
 
   // Update current game when prop changes
@@ -149,6 +151,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
       setError('')
       setSuccess('')
       setShowLeaveConfirm(false)
+      setShowCancelConfirm(false)
     }
   }, [isOpen])
 
@@ -270,6 +273,50 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
     } catch (err) {
       setError('An unexpected error occurred')
       console.error('💥 GameDetailsModal: Error leaving game:', err)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleCancelGame = async () => {
+    if (!currentGame || !user) return
+
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      console.log('🚫 GameDetailsModal: User attempting to cancel game:', currentGame.id)
+      
+      const { data, error } = await gameParticipantService.cancelGame(currentGame.id)
+      
+      if (error) {
+        console.error('❌ GameDetailsModal: Cancel game error:', error)
+        setError(error)
+      } else if (data) {
+        console.log('✅ GameDetailsModal: Successfully cancelled game:', data)
+        setSuccess('Game cancelled successfully')
+        setShowCancelConfirm(false)
+        
+        // Update game status
+        const updatedGame = {
+          ...currentGame,
+          status: 'cancelled' as const
+        }
+        setCurrentGame(updatedGame)
+        
+        if (onGameUpdate) {
+          onGameUpdate(updatedGame)
+        }
+        
+        // Close modal after a delay
+        setTimeout(() => {
+          onClose()
+        }, 2000)
+      }
+    } catch (err) {
+      setError('An unexpected error occurred')
+      console.error('💥 GameDetailsModal: Error cancelling game:', err)
     } finally {
       setActionLoading(false)
     }
@@ -408,6 +455,11 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSkillLevelColor(displayGame.skillLevel)}`}>
                   {displayGame.skillLevel === 'any' ? 'Any Level' : displayGame.skillLevel.charAt(0).toUpperCase() + displayGame.skillLevel.slice(1)}
                 </span>
+                {displayGame.status === 'cancelled' && (
+                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                    Cancelled
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex items-center space-x-2">
@@ -497,7 +549,9 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                   <div>
                     <p className="font-medium text-gray-900">Status</p>
                     <p className="text-gray-600">
-                      {isGameInPast() ? 'Past Game' : displayGame.status.charAt(0).toUpperCase() + displayGame.status.slice(1)}
+                      {displayGame.status === 'cancelled' ? 'Cancelled' :
+                       isGameInPast() ? 'Past Game' : 
+                       displayGame.status.charAt(0).toUpperCase() + displayGame.status.slice(1)}
                     </p>
                   </div>
                 </div>
@@ -551,6 +605,11 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
             <div>
               <h3 className="font-semibold text-gray-900 mb-4">
                 Participants ({joinedParticipants.length}/{displayGame.maxPlayers})
+                {waitlistParticipants.length > 0 && (
+                  <span className="text-yellow-600 ml-2">
+                    + {waitlistParticipants.length} waitlist
+                  </span>
+                )}
               </h3>
               
               {loading ? (
@@ -591,9 +650,11 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                   {/* Waitlist */}
                   {waitlistParticipants.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Waitlist</h4>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">
+                        Waitlist ({waitlistParticipants.length})
+                      </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {waitlistParticipants.map((participant) => (
+                        {waitlistParticipants.map((participant, index) => (
                           <div key={participant.participant_id} className="flex items-center space-x-3 p-3 bg-yellow-50 rounded-lg">
                             <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-full flex items-center justify-center text-white font-bold">
                               {participant.name.charAt(0).toUpperCase()}
@@ -603,7 +664,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                               <div className="flex items-center space-x-2 text-sm text-gray-600">
                                 <Star className="h-3 w-3 text-yellow-500" />
                                 <span>{participant.average_rating.toFixed(1)}</span>
-                                <span className="text-yellow-600">• Waitlist</span>
+                                <span className="text-yellow-600">• #{index + 1} in line</span>
                               </div>
                             </div>
                           </div>
@@ -655,6 +716,35 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                 </button>
               </div>
             </div>
+          ) : showCancelConfirm ? (
+            <div className="space-y-4">
+              <div className="text-center">
+                <p className="text-gray-900 font-medium">Are you sure you want to cancel this game?</p>
+                <p className="text-sm text-gray-600 mt-1">All participants will be notified. This action cannot be undone.</p>
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowCancelConfirm(false)}
+                  className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                >
+                  Keep Game
+                </button>
+                <button
+                  onClick={handleCancelGame}
+                  disabled={actionLoading}
+                  className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+                >
+                  {actionLoading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <>
+                      <Ban className="h-4 w-4" />
+                      <span>Cancel Game</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="flex space-x-3">
               <button
@@ -666,15 +756,26 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
               
               {user && (
                 <>
-                  {/* Show "Your Game" for organizers */}
+                  {/* Show "Your Game" and cancel option for organizers */}
                   {isUserOrganizer() && (
-                    <button
-                      disabled
-                      className="flex-1 bg-blue-100 text-blue-700 py-3 px-4 rounded-lg font-medium cursor-default flex items-center justify-center space-x-2"
-                    >
-                      <Crown className="h-4 w-4" />
-                      <span>Your Game</span>
-                    </button>
+                    <>
+                      <button
+                        disabled
+                        className="flex-1 bg-blue-100 text-blue-700 py-3 px-4 rounded-lg font-medium cursor-default flex items-center justify-center space-x-2"
+                      >
+                        <Crown className="h-4 w-4" />
+                        <span>Your Game</span>
+                      </button>
+                      {displayGame.status === 'active' && !isGameInPast() && (
+                        <button
+                          onClick={() => setShowCancelConfirm(true)}
+                          className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
+                        >
+                          <Ban className="h-4 w-4" />
+                          <span>Cancel Game</span>
+                        </button>
+                      )}
+                    </>
                   )}
 
                   {/* Show join/leave buttons for non-organizers */}
@@ -722,7 +823,8 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                           disabled
                           className="flex-1 bg-gray-300 text-gray-500 py-3 px-4 rounded-lg font-medium cursor-not-allowed"
                         >
-                          {isGameInPast() ? 'Game Ended' : 
+                          {displayGame.status === 'cancelled' ? 'Game Cancelled' :
+                           isGameInPast() ? 'Game Ended' : 
                            displayGame.status !== 'active' ? 'Game Inactive' : 'Cannot Join'}
                         </button>
                       )}

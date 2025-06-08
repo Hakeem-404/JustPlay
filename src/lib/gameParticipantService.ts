@@ -101,7 +101,114 @@ export const gameParticipantService = {
     }
   },
 
-  // Enhanced real-time subscription for game participants
+  async getUserGames(userId: string): Promise<{ data: any[] | null; error: string | null }> {
+    try {
+      console.log('👤 Loading user games for:', userId)
+      
+      const { data, error } = await supabase
+        .from('game_participants')
+        .select(`
+          id,
+          status,
+          joined_at,
+          game:games!inner(
+            id,
+            sport,
+            title,
+            location,
+            latitude,
+            longitude,
+            date,
+            time,
+            max_players,
+            current_players,
+            skill_level,
+            description,
+            organizer_id,
+            is_private,
+            status,
+            created_at,
+            updated_at,
+            organizer:profiles!organizer_id(name)
+          )
+        `)
+        .eq('user_id', userId)
+        .in('status', ['joined', 'waitlist'])
+        .order('joined_at', { ascending: false })
+
+      if (error) {
+        console.error('❌ Error getting user games:', error)
+        return { data: null, error: error.message }
+      }
+
+      console.log('✅ Loaded user games:', data?.length || 0)
+      
+      // Transform the data to match our Game interface
+      const transformedData = data?.map(participation => {
+        const game = participation.game
+        return {
+          participationId: participation.id,
+          participationStatus: participation.status,
+          joinedAt: participation.joined_at,
+          game: {
+            id: game.id,
+            sport: game.sport,
+            title: game.title,
+            location: game.location,
+            latitude: game.latitude,
+            longitude: game.longitude,
+            date: game.date,
+            time: game.time,
+            maxPlayers: game.max_players,
+            currentPlayers: game.current_players,
+            skillLevel: game.skill_level,
+            description: game.description,
+            organizerId: game.organizer_id,
+            organizerName: game.organizer?.name || 'Unknown',
+            isPrivate: game.is_private,
+            status: game.status,
+            createdAt: game.created_at,
+            updatedAt: game.updated_at
+          }
+        }
+      }) || []
+
+      return { data: transformedData, error: null }
+    } catch (err) {
+      console.error('💥 Unexpected error getting user games:', err)
+      return { data: null, error: 'An unexpected error occurred' }
+    }
+  },
+
+  async cancelGame(gameId: string): Promise<{ data: any; error: string | null }> {
+    try {
+      console.log('🚫 Attempting to cancel game:', gameId)
+      
+      const { data, error } = await supabase
+        .from('games')
+        .update({ 
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', gameId)
+        .eq('organizer_id', (await supabase.auth.getUser()).data.user?.id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('❌ Error cancelling game:', error)
+        return { data: null, error: error.message }
+      }
+
+      console.log('✅ Successfully cancelled game:', data)
+      return { data, error: null }
+    } catch (err) {
+      console.error('💥 Unexpected error cancelling game:', err)
+      return { data: null, error: 'An unexpected error occurred' }
+    }
+  },
+
+  // Enhanced real-time subscription for game participants with comprehensive event handling
   subscribeToGameParticipants(gameId: string, callback: (participants: any[]) => void) {
     console.log('🔄 Setting up real-time subscription for game participants:', gameId)
     
@@ -172,6 +279,37 @@ export const gameParticipantService = {
       )
       .subscribe((status) => {
         console.log('📡 Game update subscription status:', status)
+      })
+
+    return subscription
+  },
+
+  // Global real-time subscription for all participant changes
+  subscribeToAllParticipantChanges(callback: (gameId: string) => void) {
+    console.log('🔄 Setting up global participant changes subscription')
+    
+    const subscription = supabase
+      .channel('all_participant_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'game_participants'
+        },
+        (payload) => {
+          console.log('🔔 Global participant change detected:', payload.eventType)
+          
+          // Extract game_id from the payload
+          const gameId = payload.new?.game_id || payload.old?.game_id
+          if (gameId) {
+            console.log('🎮 Notifying about changes to game:', gameId)
+            callback(gameId)
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Global participant subscription status:', status)
       })
 
     return subscription
