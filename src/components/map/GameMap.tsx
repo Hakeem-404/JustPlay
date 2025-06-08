@@ -332,9 +332,28 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   )
 }
 
-// Game Popup Component
+// Game Popup Component with comprehensive null/undefined checks
 function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (game: Game) => void; onClose: () => void }) {
-  const getSkillLevelColor = (level: string) => {
+  // Early return if game is null/undefined
+  if (!game) {
+    return (
+      <div className="p-4 min-w-[280px]">
+        <div className="text-center text-gray-500">
+          <p>Game information unavailable</p>
+          <button
+            onClick={onClose}
+            className="mt-2 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const getSkillLevelColor = (level?: string) => {
+    if (!level) return 'bg-gray-100 text-gray-700'
+    
     switch (level) {
       case 'beginner': return 'bg-green-100 text-green-700'
       case 'intermediate': return 'bg-yellow-100 text-yellow-700'
@@ -343,26 +362,62 @@ function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (g
     }
   }
 
-  const formatDate = (date: string) => {
-    const gameDate = new Date(date)
-    const today = new Date()
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-
-    if (gameDate.toDateString() === today.toDateString()) {
-      return 'Today'
-    } else if (gameDate.toDateString() === tomorrow.toDateString()) {
-      return 'Tomorrow'
-    } else {
-      return gameDate.toLocaleDateString('en-US', { 
-        weekday: 'short', 
-        month: 'short', 
-        day: 'numeric' 
-      })
+  const getSkillLevelLabel = (level?: string) => {
+    if (!level) return 'Any Level'
+    if (level === 'any') return 'Any Level'
+    
+    try {
+      return level.charAt(0).toUpperCase() + level.slice(1)
+    } catch (error) {
+      console.error('Error formatting skill level:', error)
+      return 'Any Level'
     }
   }
 
-  const spotsLeft = game.maxPlayers - game.currentPlayers
+  const formatDate = (date?: string) => {
+    if (!date) return 'Date TBD'
+    
+    try {
+      const gameDate = new Date(date)
+      
+      // Check if date is valid
+      if (isNaN(gameDate.getTime())) {
+        return 'Invalid Date'
+      }
+      
+      const today = new Date()
+      const tomorrow = new Date(today)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+
+      if (gameDate.toDateString() === today.toDateString()) {
+        return 'Today'
+      } else if (gameDate.toDateString() === tomorrow.toDateString()) {
+        return 'Tomorrow'
+      } else {
+        return gameDate.toLocaleDateString('en-US', { 
+          weekday: 'short', 
+          month: 'short', 
+          day: 'numeric' 
+        })
+      }
+    } catch (error) {
+      console.error('Error formatting date:', error)
+      return 'Date Error'
+    }
+  }
+
+  // Safe property access with fallbacks
+  const sport = game.sport || 'Unknown Sport'
+  const location = game.location || 'Location TBD'
+  const skillLevel = game.skillLevel || 'any'
+  const date = game.date || ''
+  const time = game.time || 'Time TBD'
+  const currentPlayers = game.currentPlayers || 0
+  const maxPlayers = game.maxPlayers || 0
+  const organizerName = game.organizerName || 'Unknown Organizer'
+  const description = game.description || ''
+
+  const spotsLeft = Math.max(maxPlayers - currentPlayers, 0)
 
   return (
     <div className="p-4 min-w-[280px]">
@@ -370,39 +425,39 @@ function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (g
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="font-bold text-lg text-gray-900 mb-1">
-            {game.sport}
+            {sport}
           </h3>
-          <p className="text-sm text-gray-600">{game.location}</p>
+          <p className="text-sm text-gray-600">{location}</p>
         </div>
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSkillLevelColor(game.skillLevel)}`}>
-          {game.skillLevel === 'any' ? 'Any Level' : game.skillLevel.charAt(0).toUpperCase() + game.skillLevel.slice(1)}
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSkillLevelColor(skillLevel)}`}>
+          {getSkillLevelLabel(skillLevel)}
         </span>
       </div>
 
       {/* Game Details */}
       <div className="space-y-2 mb-4">
         <div className="text-sm text-gray-600">
-          <span className="font-medium">Date:</span> {formatDate(game.date)} at {game.time}
+          <span className="font-medium">Date:</span> {formatDate(date)} at {time}
         </div>
         
         <div className="text-sm text-gray-600">
-          <span className="font-medium">Players:</span> {game.currentPlayers}/{game.maxPlayers}
+          <span className="font-medium">Players:</span> {currentPlayers}/{maxPlayers}
           {spotsLeft > 0 && (
             <span className="ml-2 text-green-600 font-medium">
-              ({spotsLeft} spots left)
+              ({spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left)
             </span>
           )}
         </div>
 
         <div className="text-sm text-gray-600">
-          <span className="font-medium">Organizer:</span> {game.organizerName}
+          <span className="font-medium">Organizer:</span> {organizerName}
         </div>
       </div>
 
       {/* Description */}
-      {game.description && (
+      {description && (
         <p className="text-sm text-gray-700 mb-4 line-clamp-2">
-          {game.description}
+          {description}
         </p>
       )}
 
@@ -415,7 +470,13 @@ function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (g
           Close
         </button>
         <button
-          onClick={() => onGameClick(game)}
+          onClick={() => {
+            try {
+              onGameClick(game)
+            } catch (error) {
+              console.error('Error handling game click:', error)
+            }
+          }}
           className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
             spotsLeft > 0
               ? 'bg-blue-600 text-white hover:bg-blue-700'
