@@ -146,7 +146,6 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   }
 
   const handleMarkerClick = useCallback((game: Game) => {
-    console.log('🎯 Map marker clicked for game:', game.id, game.sport)
     setPopupInfo({
       game,
       longitude: game.longitude,
@@ -155,15 +154,8 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   }, [])
 
   const handlePopupClose = useCallback(() => {
-    console.log('❌ Map popup closed')
     setPopupInfo(null)
   }, [])
-
-  const handleGameClickFromPopup = useCallback((game: Game) => {
-    console.log('🎮 Game clicked from popup:', game.id)
-    setPopupInfo(null) // Close popup
-    onGameClick(game) // Open modal
-  }, [onGameClick])
 
   // Calculate distance between two points in kilometers
   function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -325,11 +317,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
             offset={[0, -40]}
             maxWidth="320px"
           >
-            <GamePopup 
-              game={popupInfo.game} 
-              onGameClick={handleGameClickFromPopup} 
-              onClose={handlePopupClose} 
-            />
+            <GamePopup game={popupInfo.game} onGameClick={onGameClick} onClose={handlePopupClose} />
           </Popup>
         )}
       </Map>
@@ -345,7 +333,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   )
 }
 
-// Clean GamePopup Component with Real-time Updates
+// Clean GamePopup Component
 function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (game: Game) => void; onClose: () => void }) {
   // Early return if game is null/undefined
   if (!game) {
@@ -430,8 +418,6 @@ function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (g
 
   const spotsLeft = Math.max(maxPlayers - currentPlayers, 0)
 
-  console.log('🎯 GamePopup render - Game:', game.id, 'Current:', currentPlayers, 'Max:', maxPlayers, 'Spots left:', spotsLeft)
-
   return (
     <div className="p-4 w-full max-w-[280px] overflow-hidden">
       {/* Header */}
@@ -489,7 +475,6 @@ function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (g
         <button
           onClick={() => {
             try {
-              console.log('🎮 View Details clicked for game:', game.id)
               onGameClick(game)
             } catch (error) {
               console.error('Error handling game click:', error)
