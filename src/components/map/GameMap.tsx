@@ -29,6 +29,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   const { latitude, longitude, error: locationError, requestLocation } = useGeolocation()
   const [mapRef, setMapRef] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [mapLoaded, setMapLoaded] = useState(false)
   const [filters, setFilters] = useState<MapFilters>({
     sports: [],
     distance: 10,
@@ -41,6 +42,17 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   const mapCenter: [number, number] = latitude && longitude 
     ? [latitude, longitude] 
     : defaultCenter
+
+  // Handle map ready event
+  useEffect(() => {
+    if (mapRef) {
+      // Force map to invalidate size after container is ready
+      setTimeout(() => {
+        mapRef.invalidateSize()
+        setMapLoaded(true)
+      }, 100)
+    }
+  }, [mapRef])
 
   // Filter games based on current filters
   const filteredGames = useMemo(() => {
@@ -151,7 +163,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   }, [filteredGames])
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative ${className}`} style={{ height: '100%', width: '100%' }}>
       {/* Location Error */}
       {locationError && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1001] bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-center space-x-2 shadow-sm">
@@ -171,50 +183,68 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
         onSearch={handleSearch}
       />
 
-      {/* Map */}
-      <MapContainer
-        center={mapCenter}
-        zoom={13}
-        style={{ height: '100%', width: '100%' }}
-        zoomControl={false}
-        ref={setMapRef}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+      {/* Loading Overlay */}
+      {!mapLoaded && (
+        <div className="absolute inset-0 bg-gray-100 flex items-center justify-center z-[999]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+            <p className="text-gray-600 text-sm">Loading map...</p>
+          </div>
+        </div>
+      )}
 
-        {/* User Location */}
-        {latitude && longitude && (
-          <>
-            <Marker position={[latitude, longitude]} icon={userLocationIcon} />
-            <Circle
-              center={[latitude, longitude]}
-              radius={filters.distance * 1000} // Convert km to meters
-              pathOptions={{
-                color: '#3b82f6',
-                fillColor: '#3b82f6',
-                fillOpacity: 0.1,
-                weight: 2
-              }}
-            />
-          </>
-        )}
+      {/* Map Container */}
+      <div style={{ height: '100%', width: '100%' }}>
+        <MapContainer
+          center={mapCenter}
+          zoom={13}
+          style={{ height: '100%', width: '100%' }}
+          zoomControl={false}
+          ref={setMapRef}
+          whenReady={() => {
+            setTimeout(() => setMapLoaded(true), 500)
+          }}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maxZoom={19}
+            tileSize={256}
+            zoomOffset={0}
+          />
 
-        {/* Game Markers */}
-        {groupedGames.map((gameGroup, index) => {
-          // For groups with multiple games, show the first one with a count indicator
-          const primaryGame = gameGroup[0]
-          return (
-            <GameMarker
-              key={`group-${index}`}
-              game={primaryGame}
-              onGameClick={onGameClick}
-              gameCount={gameGroup.length}
-            />
-          )
-        })}
-      </MapContainer>
+          {/* User Location */}
+          {latitude && longitude && mapLoaded && (
+            <>
+              <Marker position={[latitude, longitude]} icon={userLocationIcon} />
+              <Circle
+                center={[latitude, longitude]}
+                radius={filters.distance * 1000} // Convert km to meters
+                pathOptions={{
+                  color: '#3b82f6',
+                  fillColor: '#3b82f6',
+                  fillOpacity: 0.1,
+                  weight: 2
+                }}
+              />
+            </>
+          )}
+
+          {/* Game Markers */}
+          {mapLoaded && groupedGames.map((gameGroup, index) => {
+            // For groups with multiple games, show the first one with a count indicator
+            const primaryGame = gameGroup[0]
+            return (
+              <GameMarker
+                key={`group-${index}`}
+                game={primaryGame}
+                onGameClick={onGameClick}
+                gameCount={gameGroup.length}
+              />
+            )
+          })}
+        </MapContainer>
+      </div>
 
       {/* Results Counter */}
       <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-sm px-3 py-2 z-[1000]">

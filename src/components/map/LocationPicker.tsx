@@ -43,6 +43,7 @@ export default function LocationPicker({ onLocationSelect, onCancel, initialLoca
   } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
+  const [mapLoaded, setMapLoaded] = useState(false)
 
   const defaultCenter = initialLocation 
     ? [initialLocation.latitude, initialLocation.longitude] as [number, number]
@@ -164,21 +165,34 @@ export default function LocationPicker({ onLocationSelect, onCancel, initialLoca
         </div>
 
         {/* Map */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative" style={{ height: '100%' }}>
+          {!mapLoaded && (
+            <div className="absolute inset-0 bg-gray-100 flex items-center justify-center z-[999]">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                <p className="text-gray-600 text-sm">Loading map...</p>
+              </div>
+            </div>
+          )}
+          
           <MapContainer
             center={defaultCenter}
             zoom={13}
             style={{ height: '100%', width: '100%' }}
             zoomControl={true}
+            whenReady={() => setMapLoaded(true)}
           >
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              maxZoom={19}
+              tileSize={256}
+              zoomOffset={0}
             />
             
             <MapClickHandler onLocationClick={handleMapClick} />
             
-            {selectedLocation && (
+            {selectedLocation && mapLoaded && (
               <Marker
                 position={[selectedLocation.latitude, selectedLocation.longitude]}
                 icon={selectedLocationIcon}
