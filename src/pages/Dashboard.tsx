@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, List, Map as MapIcon, AlertCircle, RefreshCw } from 'lucide-react'
 import GameMap from '../components/map/GameMap'
+import GameDetailsModal from '../components/GameDetailsModal'
 import { gameService } from '../lib/gameService'
 import { Game, MapFilters } from '../types/game'
 import { useGeolocation } from '../hooks/useGeolocation'
@@ -9,6 +10,7 @@ import { useGeolocation } from '../hooks/useGeolocation'
 export default function Dashboard() {
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map')
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const [games, setGames] = useState<Game[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -96,21 +98,21 @@ export default function Dashboard() {
 
   const handleGameClick = (game: Game) => {
     setSelectedGame(game)
+    setIsModalOpen(true)
   }
 
-  const handleJoinGame = async (gameId: string) => {
-    try {
-      const { error } = await gameService.joinGame(gameId)
-      if (error) {
-        alert('Failed to join game. Please try again.')
-      } else {
-        alert('Successfully joined the game!')
-        setSelectedGame(null)
-        loadGames() // Refresh games list
-      }
-    } catch (err) {
-      alert('An error occurred while joining the game.')
-    }
+  const handleModalClose = () => {
+    setIsModalOpen(false)
+    setSelectedGame(null)
+  }
+
+  const handleGameUpdate = (updatedGame: Game) => {
+    setGames(prevGames => 
+      prevGames.map(game => 
+        game.id === updatedGame.id ? updatedGame : game
+      )
+    )
+    setSelectedGame(updatedGame)
   }
 
   const formatDate = (date: string) => {
@@ -271,8 +273,8 @@ export default function Dashboard() {
               {games.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-gray-400 mb-4">
-                    <svg className="h-16 w-16 mx-auto\" fill="none\" viewBox="0 0 24 24\" stroke="currentColor">
-                      <path strokeLinecap="round\" strokeLinejoin="round\" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <svg className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No games found</h3>
@@ -335,16 +337,11 @@ export default function Dashboard() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              handleJoinGame(game.id)
+                              handleGameClick(game)
                             }}
-                            disabled={spotsLeft === 0}
-                            className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                              spotsLeft > 0
-                                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            }`}
+                            className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
                           >
-                            {spotsLeft > 0 ? 'Join Game' : 'Game Full'}
+                            View Details
                           </button>
                         </div>
                       </div>
@@ -357,86 +354,13 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Game Detail Modal */}
-      {selectedGame && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    {selectedGame.title || selectedGame.sport}
-                  </h2>
-                  <p className="text-gray-600">{selectedGame.location}</p>
-                </div>
-                <button
-                  onClick={() => setSelectedGame(null)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="space-y-4 mb-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Date</span>
-                    <p className="text-gray-900">{formatDate(selectedGame.date)}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Time</span>
-                    <p className="text-gray-900">{selectedGame.time}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Players</span>
-                    <p className="text-gray-900">{selectedGame.currentPlayers}/{selectedGame.maxPlayers}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Skill Level</span>
-                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getSkillLevelColor(selectedGame.skillLevel)}`}>
-                      {selectedGame.skillLevel === 'any' ? 'Any Level' : selectedGame.skillLevel.charAt(0).toUpperCase() + selectedGame.skillLevel.slice(1)}
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-sm font-medium text-gray-700">Organizer</span>
-                  <p className="text-gray-900">{selectedGame.organizerName}</p>
-                </div>
-
-                {selectedGame.description && (
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Description</span>
-                    <p className="text-gray-900 mt-1">{selectedGame.description}</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setSelectedGame(null)}
-                  className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => handleJoinGame(selectedGame.id)}
-                  disabled={selectedGame.currentPlayers >= selectedGame.maxPlayers}
-                  className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
-                    selectedGame.currentPlayers >= selectedGame.maxPlayers
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
-                >
-                  {selectedGame.currentPlayers >= selectedGame.maxPlayers ? 'Game Full' : 'Join Game'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Game Details Modal */}
+      <GameDetailsModal
+        game={selectedGame}
+        isOpen={isModalOpen}
+        onClose={handleModalClose}
+        onGameUpdate={handleGameUpdate}
+      />
     </div>
   )
 }
