@@ -1,13 +1,11 @@
 import React from 'react'
-import { Marker, Popup } from 'react-leaflet'
-import { DivIcon } from 'leaflet'
-import { MapPin, Users, Clock, Target, Calendar } from 'lucide-react'
+import { Marker } from 'react-map-gl'
 import { Game } from '../../types/game'
 
 interface GameMarkerProps {
   game: Game
-  onGameClick: (game: Game) => void
   gameCount?: number
+  onMarkerClick: (game: Game) => void
 }
 
 // Sport-specific marker colors
@@ -38,159 +36,40 @@ const SPORT_ICONS: { [key: string]: string } = {
   'Running': '🏃'
 }
 
-export default function GameMarker({ game, onGameClick, gameCount = 1 }: GameMarkerProps) {
+export default function GameMarker({ game, gameCount = 1, onMarkerClick }: GameMarkerProps) {
   const color = SPORT_COLORS[game.sport] || '#6b7280'
   const sportIcon = SPORT_ICONS[game.sport] || '🏃'
 
-  // Create custom marker icon
-  const customIcon = new DivIcon({
-    html: `
-      <div style="
-        background-color: ${color};
-        width: 40px;
-        height: 40px;
-        border-radius: 50% 50% 50% 0;
-        border: 3px solid white;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
-        transform: rotate(-45deg);
-        position: relative;
-      ">
-        <span style="transform: rotate(45deg);">${sportIcon}</span>
-        ${gameCount > 1 ? `
-          <div style="
-            position: absolute;
-            top: -8px;
-            right: -8px;
-            background-color: #ef4444;
-            color: white;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: bold;
-            transform: rotate(45deg);
-          ">${gameCount}</div>
-        ` : ''}
-      </div>
-    `,
-    className: 'custom-game-marker',
-    iconSize: [40, 40],
-    iconAnchor: [20, 40],
-    popupAnchor: [0, -40]
-  })
-
-  const getSkillLevelColor = (level: string) => {
-    switch (level) {
-      case 'beginner': return 'bg-green-100 text-green-700'
-      case 'intermediate': return 'bg-yellow-100 text-yellow-700'
-      case 'advanced': return 'bg-red-100 text-red-700'
-      default: return 'bg-gray-100 text-gray-700'
-    }
-  }
-
-  const formatDate = (date: string) => {
-    const gameDate = new Date(date)
-    const today = new Date()
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-
-    if (gameDate.toDateString() === today.toDateString()) {
-      return 'Today'
-    } else if (gameDate.toDateString() === tomorrow.toDateString()) {
-      return 'Tomorrow'
-    } else {
-      return gameDate.toLocaleDateString('en-US', { 
-        weekday: 'short', 
-        month: 'short', 
-        day: 'numeric' 
-      })
-    }
-  }
-
-  const spotsLeft = game.maxPlayers - game.currentPlayers
-
   return (
     <Marker
-      position={[game.latitude, game.longitude]}
-      icon={customIcon}
-      eventHandlers={{
-        click: () => onGameClick(game)
+      longitude={game.longitude}
+      latitude={game.latitude}
+      onClick={(e) => {
+        e.originalEvent.stopPropagation()
+        onMarkerClick(game)
       }}
     >
-      <Popup className="game-popup" closeButton={false}>
-        <div className="p-4 min-w-[280px]">
-          {/* Header */}
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <h3 className="font-bold text-lg text-gray-900 mb-1">
-                {game.sport}
-                {gameCount > 1 && (
-                  <span className="ml-2 text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                    +{gameCount - 1} more
-                  </span>
-                )}
-              </h3>
-              <p className="text-sm text-gray-600 flex items-center">
-                <MapPin className="h-3 w-3 mr-1" />
-                {game.location}
-              </p>
-            </div>
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSkillLevelColor(game.skillLevel)}`}>
-              {game.skillLevel === 'any' ? 'Any Level' : game.skillLevel.charAt(0).toUpperCase() + game.skillLevel.slice(1)}
-            </span>
-          </div>
-
-          {/* Game Details */}
-          <div className="space-y-2 mb-4">
-            <div className="flex items-center text-sm text-gray-600">
-              <Calendar className="h-4 w-4 mr-2" />
-              <span>{formatDate(game.date)} at {game.time}</span>
-            </div>
-            
-            <div className="flex items-center text-sm text-gray-600">
-              <Users className="h-4 w-4 mr-2" />
-              <span>{game.currentPlayers}/{game.maxPlayers} players</span>
-              {spotsLeft > 0 && (
-                <span className="ml-2 text-green-600 font-medium">
-                  ({spotsLeft} spots left)
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center text-sm text-gray-600">
-              <Target className="h-4 w-4 mr-2" />
-              <span>Organized by {game.organizerName}</span>
-            </div>
-          </div>
-
-          {/* Description */}
-          {game.description && (
-            <p className="text-sm text-gray-700 mb-4 line-clamp-2">
-              {game.description}
-            </p>
-          )}
-
-          {/* Action Button */}
-          <button
-            onClick={() => onGameClick(game)}
-            className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
-              spotsLeft > 0
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
-            disabled={spotsLeft === 0}
-          >
-            {spotsLeft > 0 ? 'View Details' : 'Game Full'}
-          </button>
+      <div className="custom-marker relative">
+        <div
+          className="w-10 h-10 rounded-full border-3 border-white shadow-lg flex items-center justify-center text-lg transform rotate-45"
+          style={{ backgroundColor: color }}
+        >
+          <span className="transform -rotate-45">{sportIcon}</span>
         </div>
-      </Popup>
+        
+        {/* Game count badge */}
+        {gameCount > 1 && (
+          <div className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+            {gameCount}
+          </div>
+        )}
+        
+        {/* Pointer tail */}
+        <div
+          className="absolute top-8 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-4 border-transparent"
+          style={{ borderTopColor: color }}
+        />
+      </div>
     </Marker>
   )
 }

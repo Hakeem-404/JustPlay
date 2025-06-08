@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react'
-import { MapContainer, TileLayer, Marker, Circle } from 'react-leaflet'
-import { Icon } from 'leaflet'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import Map, { Marker, Popup, Source, Layer, NavigationControl, GeolocateControl } from 'react-map-gl'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import { Game, MapFilters } from '../../types/game'
 import { useGeolocation } from '../../hooks/useGeolocation'
@@ -13,25 +12,17 @@ interface GameMapProps {
   className?: string
 }
 
-// Custom user location marker
-const userLocationIcon = new Icon({
-  iconUrl: 'data:image/svg+xml;base64,' + btoa(`
-    <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="12" cy="12" r="10" fill="#3b82f6" stroke="white" stroke-width="3"/>
-      <circle cx="12" cy="12" r="4" fill="white"/>
-    </svg>
-  `),
-  iconSize: [24, 24],
-  iconAnchor: [12, 12]
-})
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
 export default function GameMap({ games, onGameClick, className = '' }: GameMapProps) {
   const { latitude, longitude, error: locationError, requestLocation } = useGeolocation()
-  const [mapRef, setMapRef] = useState<any>(null)
+  const mapRef = useRef<any>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [mapLoaded, setMapLoaded] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
-  const [retryCount, setRetryCount] = useState(0)
+  const [selectedGame, setSelectedGame] = useState<Game | null>(null)
+  const [popupInfo, setPopupInfo] = useState<{ game: Game; longitude: number; latitude: number } | null>(null)
+
   const [filters, setFilters] = useState<MapFilters>({
     sports: [],
     distance: 10,
@@ -39,11 +30,23 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     skillLevel: 'all'
   })
 
-  // Default center (NYC) if no user location
-  const defaultCenter: [number, number] = [40.7128, -74.0060]
-  const mapCenter: [number, number] = latitude && longitude 
-    ? [latitude, longitude] 
-    : defaultCenter
+  const [viewState, setViewState] = useState({
+    longitude: -74.0060, // NYC default
+    latitude: 40.7128,
+    zoom: 10
+  })
+
+  // Update view when user location is available
+  useEffect(() => {
+    if (latitude && longitude && mapLoaded) {
+      setViewState(prev => ({
+        ...prev,
+        longitude,
+        latitude,
+        zoom: 12
+      }))
+    }
+  }, [latitude, longitude, mapLoaded])
 
   // Debounced filter changes
   const [debouncedFilters, setDebouncedFilters] = useState(filters)
@@ -54,24 +57,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     return () => clearTimeout(timer)
   }, [filters])
 
-  // Handle map ready event
-  useEffect(() => {
-    if (mapRef) {
-      const timer = setTimeout(() => {
-        try {
-          mapRef.invalidateSize()
-          setMapLoaded(true)
-          setMapError(null)
-        } catch (error) {
-          console.error('Map initialization error:', error)
-          setMapError('Failed to initialize map')
-        }
-      }, 100)
-      return () => clearTimeout(timer)
-    }
-  }, [mapRef])
-
-  // Filter games based on current filters (limit to 20 for performance)
+  // Filter games based on current filters
   const filteredGames = useMemo(() => {
     const filtered = games.filter(game => {
       // Sport filter
@@ -118,32 +104,39 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
       return true
     })
 
-    // Limit to 20 games for performance
-    return filtered.slice(0, 20)
+    // Limit to 50 games for performance
+    return filtered.slice(0, 50)
   }, [games, debouncedFilters, latitude, longitude])
 
-  const handleCenterOnUser = () => {
-    if (latitude && longitude && mapRef) {
-      mapRef.setView([latitude, longitude], 15)
+  const handleCenterOnUser = useCallback(() => {
+    if (latitude && longitude && mapRef.current) {
+      mapRef.current.flyTo({
+        center: [longitude, latitude],
+        zoom: 15,
+        duration: 1000
+      })
     } else {
       requestLocation()
     }
-  }
+  }, [latitude, longitude, requestLocation])
 
   const handleSearch = async () => {
-    if (!searchQuery.trim() || !mapRef) return
+    if (!searchQuery.trim() || !MAPBOX_TOKEN) return
 
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQuery)}.json?access_token=${MAPBOX_TOKEN}&limit=1`
       )
       const data = await response.json()
 
-      if (data.length > 0) {
-        const result = data[0]
-        const lat = parseFloat(result.lat)
-        const lng = parseFloat(result.lon)
-        mapRef.setView([lat, lng], 15)
+      if (data.features && data.features.length > 0) {
+        const [lng, lat] = data.features[0].center
+        setViewState(prev => ({
+          ...prev,
+          longitude: lng,
+          latitude: lat,
+          zoom: 15
+        }))
       } else {
         alert('Location not found. Please try a different search term.')
       }
@@ -153,11 +146,17 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     }
   }
 
-  const handleRetry = () => {
-    setMapError(null)
-    setMapLoaded(false)
-    setRetryCount(prev => prev + 1)
-  }
+  const handleMarkerClick = useCallback((game: Game) => {
+    setPopupInfo({
+      game,
+      longitude: game.longitude,
+      latitude: game.latitude
+    })
+  }, [])
+
+  const handlePopupClose = useCallback(() => {
+    setPopupInfo(null)
+  }, [])
 
   // Calculate distance between two points in kilometers
   function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -172,7 +171,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     return R * c
   }
 
-  // Simple marker grouping for nearby games (instead of clustering library)
+  // Simple marker grouping for nearby games
   const groupedGames = useMemo(() => {
     const groups: { [key: string]: Game[] } = {}
     const threshold = 0.001 // ~100 meters
@@ -188,6 +187,36 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     return Object.values(groups)
   }, [filteredGames])
 
+  // Create circle layer for user location radius
+  const circleGeoJSON = useMemo(() => {
+    if (!latitude || !longitude) return null
+
+    const radiusInKm = filters.distance
+    const radiusInMeters = radiusInKm * 1000
+    const points = 64
+    const coords = []
+
+    for (let i = 0; i < points; i++) {
+      const angle = (i / points) * 2 * Math.PI
+      const dx = radiusInMeters * Math.cos(angle)
+      const dy = radiusInMeters * Math.sin(angle)
+      
+      const deltaLat = dy / 111320
+      const deltaLng = dx / (111320 * Math.cos(latitude * Math.PI / 180))
+      
+      coords.push([longitude + deltaLng, latitude + deltaLat])
+    }
+    coords.push(coords[0]) // Close the circle
+
+    return {
+      type: 'Feature',
+      geometry: {
+        type: 'Polygon',
+        coordinates: [coords]
+      }
+    }
+  }, [latitude, longitude, filters.distance])
+
   // Show error state
   if (mapError) {
     return (
@@ -197,12 +226,32 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Map Failed to Load</h3>
           <p className="text-gray-600 mb-4">{mapError}</p>
           <button
-            onClick={handleRetry}
+            onClick={() => {
+              setMapError(null)
+              setMapLoaded(false)
+            }}
             className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2 mx-auto"
           >
             <RefreshCw className="h-4 w-4" />
             <span>Retry</span>
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!MAPBOX_TOKEN) {
+    return (
+      <div className={`relative ${className} flex items-center justify-center bg-gray-100`}>
+        <div className="text-center p-8">
+          <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Mapbox Token Required</h3>
+          <p className="text-gray-600 mb-4">
+            Please add your Mapbox access token to the .env file as VITE_MAPBOX_ACCESS_TOKEN
+          </p>
+          <p className="text-sm text-gray-500">
+            Get a free token at <a href="https://mapbox.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">mapbox.com</a>
+          </p>
         </div>
       </div>
     )
@@ -229,7 +278,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
         onSearch={handleSearch}
       />
 
-      {/* Loading Overlay with Skeleton */}
+      {/* Loading Overlay */}
       {!mapLoaded && (
         <div className="absolute inset-0 bg-gray-100 flex items-center justify-center z-[999]">
           <div className="text-center">
@@ -242,75 +291,192 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
       )}
 
       {/* Map Container */}
-      <div style={{ height: '100%', width: '100%' }}>
-        <MapContainer
-          key={retryCount} // Force remount on retry
-          center={mapCenter}
-          zoom={10} // Reduced initial zoom for faster loading
-          maxZoom={18} // Limit max zoom
-          style={{ height: '100%', width: '100%' }}
-          zoomControl={false}
-          ref={setMapRef}
-          whenReady={() => {
-            setTimeout(() => {
-              setMapLoaded(true)
-              setMapError(null)
-            }, 200)
-          }}
-          onError={() => {
-            setMapError('Map tiles failed to load')
-            setMapLoaded(false)
-          }}
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
-            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-            maxZoom={18}
-            tileSize={256}
-            zoomOffset={0}
-            subdomains="abcd"
-            errorTileUrl="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
-          />
+      <Map
+        ref={mapRef}
+        {...viewState}
+        onMove={evt => setViewState(evt.viewState)}
+        mapboxAccessToken={MAPBOX_TOKEN}
+        style={{ width: '100%', height: '100%' }}
+        mapStyle="mapbox://styles/mapbox/light-v11"
+        onLoad={() => setMapLoaded(true)}
+        onError={(error) => {
+          console.error('Mapbox error:', error)
+          setMapError('Failed to load map. Please check your internet connection.')
+        }}
+        attributionControl={false}
+      >
+        {/* Navigation Controls */}
+        <NavigationControl position="bottom-right" />
+        
+        {/* Geolocate Control */}
+        <GeolocateControl
+          position="bottom-right"
+          trackUserLocation={false}
+          showUserHeading={false}
+        />
 
-          {/* User Location */}
-          {latitude && longitude && mapLoaded && (
-            <>
-              <Marker position={[latitude, longitude]} icon={userLocationIcon} />
-              <Circle
-                center={[latitude, longitude]}
-                radius={filters.distance * 1000} // Convert km to meters
-                pathOptions={{
-                  color: '#3b82f6',
-                  fillColor: '#3b82f6',
-                  fillOpacity: 0.1,
-                  weight: 2
-                }}
-              />
-            </>
-          )}
+        {/* User Location Circle */}
+        {latitude && longitude && circleGeoJSON && (
+          <Source id="user-radius" type="geojson" data={circleGeoJSON}>
+            <Layer
+              id="user-radius-fill"
+              type="fill"
+              paint={{
+                'fill-color': '#3b82f6',
+                'fill-opacity': 0.1
+              }}
+            />
+            <Layer
+              id="user-radius-line"
+              type="line"
+              paint={{
+                'line-color': '#3b82f6',
+                'line-width': 2,
+                'line-opacity': 0.5
+              }}
+            />
+          </Source>
+        )}
 
-          {/* Game Markers */}
-          {mapLoaded && groupedGames.map((gameGroup, index) => {
-            // For groups with multiple games, show the first one with a count indicator
-            const primaryGame = gameGroup[0]
-            return (
-              <GameMarker
-                key={`group-${index}`}
-                game={primaryGame}
-                onGameClick={onGameClick}
-                gameCount={gameGroup.length}
-              />
-            )
-          })}
-        </MapContainer>
-      </div>
+        {/* User Location Marker */}
+        {latitude && longitude && (
+          <Marker longitude={longitude} latitude={latitude}>
+            <div className="w-6 h-6 bg-blue-600 border-2 border-white rounded-full shadow-lg"></div>
+          </Marker>
+        )}
+
+        {/* Game Markers */}
+        {groupedGames.map((gameGroup, index) => {
+          const primaryGame = gameGroup[0]
+          return (
+            <GameMarker
+              key={`group-${index}`}
+              game={primaryGame}
+              gameCount={gameGroup.length}
+              onMarkerClick={handleMarkerClick}
+            />
+          )
+        })}
+
+        {/* Popup */}
+        {popupInfo && (
+          <Popup
+            longitude={popupInfo.longitude}
+            latitude={popupInfo.latitude}
+            onClose={handlePopupClose}
+            closeButton={false}
+            closeOnClick={false}
+            offset={[0, -40]}
+          >
+            <GamePopup game={popupInfo.game} onGameClick={onGameClick} onClose={handlePopupClose} />
+          </Popup>
+        )}
+      </Map>
 
       {/* Results Counter */}
       <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-sm px-3 py-2 z-[1000]">
         <span className="text-sm text-gray-600">
           {filteredGames.length} game{filteredGames.length !== 1 ? 's' : ''} found
-          {filteredGames.length === 20 && games.length > 20 && ' (showing first 20)'}
+          {filteredGames.length === 50 && games.length > 50 && ' (showing first 50)'}
         </span>
+      </div>
+    </div>
+  )
+}
+
+// Game Popup Component
+function GamePopup({ game, onGameClick, onClose }: { game: Game; onGameClick: (game: Game) => void; onClose: () => void }) {
+  const getSkillLevelColor = (level: string) => {
+    switch (level) {
+      case 'beginner': return 'bg-green-100 text-green-700'
+      case 'intermediate': return 'bg-yellow-100 text-yellow-700'
+      case 'advanced': return 'bg-red-100 text-red-700'
+      default: return 'bg-gray-100 text-gray-700'
+    }
+  }
+
+  const formatDate = (date: string) => {
+    const gameDate = new Date(date)
+    const today = new Date()
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+
+    if (gameDate.toDateString() === today.toDateString()) {
+      return 'Today'
+    } else if (gameDate.toDateString() === tomorrow.toDateString()) {
+      return 'Tomorrow'
+    } else {
+      return gameDate.toLocaleDateString('en-US', { 
+        weekday: 'short', 
+        month: 'short', 
+        day: 'numeric' 
+      })
+    }
+  }
+
+  const spotsLeft = game.maxPlayers - game.currentPlayers
+
+  return (
+    <div className="p-4 min-w-[280px]">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <h3 className="font-bold text-lg text-gray-900 mb-1">
+            {game.sport}
+          </h3>
+          <p className="text-sm text-gray-600">{game.location}</p>
+        </div>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSkillLevelColor(game.skillLevel)}`}>
+          {game.skillLevel === 'any' ? 'Any Level' : game.skillLevel.charAt(0).toUpperCase() + game.skillLevel.slice(1)}
+        </span>
+      </div>
+
+      {/* Game Details */}
+      <div className="space-y-2 mb-4">
+        <div className="text-sm text-gray-600">
+          <span className="font-medium">Date:</span> {formatDate(game.date)} at {game.time}
+        </div>
+        
+        <div className="text-sm text-gray-600">
+          <span className="font-medium">Players:</span> {game.currentPlayers}/{game.maxPlayers}
+          {spotsLeft > 0 && (
+            <span className="ml-2 text-green-600 font-medium">
+              ({spotsLeft} spots left)
+            </span>
+          )}
+        </div>
+
+        <div className="text-sm text-gray-600">
+          <span className="font-medium">Organizer:</span> {game.organizerName}
+        </div>
+      </div>
+
+      {/* Description */}
+      {game.description && (
+        <p className="text-sm text-gray-700 mb-4 line-clamp-2">
+          {game.description}
+        </p>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex space-x-2">
+        <button
+          onClick={onClose}
+          className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+        >
+          Close
+        </button>
+        <button
+          onClick={() => onGameClick(game)}
+          className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+            spotsLeft > 0
+              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          }`}
+          disabled={spotsLeft === 0}
+        >
+          {spotsLeft > 0 ? 'View Details' : 'Game Full'}
+        </button>
       </div>
     </div>
   )

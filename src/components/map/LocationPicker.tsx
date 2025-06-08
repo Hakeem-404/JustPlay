@@ -1,6 +1,5 @@
-import React, { useState } from 'react'
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
-import { Icon } from 'leaflet'
+import React, { useState, useCallback } from 'react'
+import Map, { Marker, NavigationControl } from 'react-map-gl'
 import { MapPin, Search, Check, X, AlertCircle, RefreshCw } from 'lucide-react'
 
 interface LocationPickerProps {
@@ -9,31 +8,7 @@ interface LocationPickerProps {
   initialLocation?: { latitude: number; longitude: number }
 }
 
-// Custom marker icon for selected location
-const selectedLocationIcon = new Icon({
-  iconUrl: 'data:image/svg+xml;base64,' + btoa(`
-    <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="20" cy="20" r="18" fill="#ef4444" stroke="white" stroke-width="4"/>
-      <circle cx="20" cy="20" r="8" fill="white"/>
-    </svg>
-  `),
-  iconSize: [40, 40],
-  iconAnchor: [20, 40],
-  popupAnchor: [0, -40]
-})
-
-interface MapClickHandlerProps {
-  onLocationClick: (lat: number, lng: number) => void
-}
-
-function MapClickHandler({ onLocationClick }: MapClickHandlerProps) {
-  useMapEvents({
-    click: (e) => {
-      onLocationClick(e.latlng.lat, e.latlng.lng)
-    }
-  })
-  return null
-}
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
 export default function LocationPicker({ onLocationSelect, onCancel, initialLocation }: LocationPickerProps) {
   const [selectedLocation, setSelectedLocation] = useState<{
@@ -45,13 +20,16 @@ export default function LocationPicker({ onLocationSelect, onCancel, initialLoca
   const [isSearching, setIsSearching] = useState(false)
   const [mapLoaded, setMapLoaded] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
-  const [retryCount, setRetryCount] = useState(0)
 
-  const defaultCenter = initialLocation 
-    ? [initialLocation.latitude, initialLocation.longitude] as [number, number]
-    : [40.7128, -74.0060] as [number, number] // NYC default
+  const [viewState, setViewState] = useState({
+    longitude: initialLocation?.longitude || -74.0060,
+    latitude: initialLocation?.latitude || 40.7128,
+    zoom: 13
+  })
 
-  const handleMapClick = async (lat: number, lng: number) => {
+  const handleMapClick = useCallback(async (event: any) => {
+    const { lng, lat } = event.lngLat
+    
     setSelectedLocation({
       latitude: lat,
       longitude: lng,
@@ -59,44 +37,52 @@ export default function LocationPicker({ onLocationSelect, onCancel, initialLoca
     })
 
     // Try to get address from coordinates using reverse geocoding
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
-      )
-      const data = await response.json()
-      
-      if (data.display_name) {
-        setSelectedLocation({
-          latitude: lat,
-          longitude: lng,
-          address: data.display_name
-        })
+    if (MAPBOX_TOKEN) {
+      try {
+        const response = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=address,poi`
+        )
+        const data = await response.json()
+        
+        if (data.features && data.features.length > 0) {
+          setSelectedLocation({
+            latitude: lat,
+            longitude: lng,
+            address: data.features[0].place_name
+          })
+        }
+      } catch (error) {
+        console.error('Error getting address:', error)
       }
-    } catch (error) {
-      console.error('Error getting address:', error)
     }
-  }
+  }, [])
 
   const handleSearch = async () => {
-    if (!searchQuery.trim()) return
+    if (!searchQuery.trim() || !MAPBOX_TOKEN) return
 
     setIsSearching(true)
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&addressdetails=1`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQuery)}.json?access_token=${MAPBOX_TOKEN}&limit=1`
       )
       const data = await response.json()
 
-      if (data.length > 0) {
-        const result = data[0]
-        const lat = parseFloat(result.lat)
-        const lng = parseFloat(result.lon)
+      if (data.features && data.features.length > 0) {
+        const feature = data.features[0]
+        const [lng, lat] = feature.center
         
         setSelectedLocation({
           latitude: lat,
           longitude: lng,
-          address: result.display_name
+          address: feature.place_name
         })
+        
+        setViewState(prev => ({
+          ...prev,
+          longitude: lng,
+          latitude: lat,
+          zoom: 15
+        }))
       } else {
         alert('Location not found. Please try a different search term.')
       }
@@ -120,10 +106,26 @@ export default function LocationPicker({ onLocationSelect, onCancel, initialLoca
     }
   }
 
-  const handleRetry = () => {
-    setMapError(null)
-    setMapLoaded(false)
-    setRetryCount(prev => prev + 1)
+  if (!MAPBOX_TOKEN) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
+          <div className="text-center">
+            <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Mapbox Token Required</h3>
+            <p className="text-gray-600 mb-4">
+              Please add your Mapbox access token to use the location picker.
+            </p>
+            <button
+              onClick={onCancel}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -173,7 +175,7 @@ export default function LocationPicker({ onLocationSelect, onCancel, initialLoca
         </div>
 
         {/* Map */}
-        <div className="flex-1 relative" style={{ height: '100%' }}>
+        <div className="flex-1 relative">
           {mapError ? (
             <div className="absolute inset-0 bg-gray-100 flex items-center justify-center">
               <div className="text-center p-8">
@@ -181,7 +183,7 @@ export default function LocationPicker({ onLocationSelect, onCancel, initialLoca
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Map Failed to Load</h3>
                 <p className="text-gray-600 mb-4">{mapError}</p>
                 <button
-                  onClick={handleRetry}
+                  onClick={() => setMapError(null)}
                   className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2 mx-auto"
                 >
                   <RefreshCw className="h-4 w-4" />
@@ -201,34 +203,33 @@ export default function LocationPicker({ onLocationSelect, onCancel, initialLoca
                 </div>
               )}
               
-              <MapContainer
-                key={retryCount}
-                center={defaultCenter}
-                zoom={13}
-                style={{ height: '100%', width: '100%' }}
-                zoomControl={true}
-                whenReady={() => setMapLoaded(true)}
-                onError={() => setMapError('Map tiles failed to load')}
+              <Map
+                {...viewState}
+                onMove={evt => setViewState(evt.viewState)}
+                onClick={handleMapClick}
+                mapboxAccessToken={MAPBOX_TOKEN}
+                style={{ width: '100%', height: '100%' }}
+                mapStyle="mapbox://styles/mapbox/light-v11"
+                onLoad={() => setMapLoaded(true)}
+                onError={(error) => {
+                  console.error('Mapbox error:', error)
+                  setMapError('Failed to load map. Please check your internet connection.')
+                }}
+                cursor="crosshair"
               >
-                <TileLayer
-                  attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
-                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-                  maxZoom={19}
-                  tileSize={256}
-                  zoomOffset={0}
-                  subdomains="abcd"
-                  errorTileUrl="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
-                />
+                <NavigationControl position="bottom-right" />
                 
-                <MapClickHandler onLocationClick={handleMapClick} />
-                
-                {selectedLocation && mapLoaded && (
+                {selectedLocation && (
                   <Marker
-                    position={[selectedLocation.latitude, selectedLocation.longitude]}
-                    icon={selectedLocationIcon}
-                  />
+                    longitude={selectedLocation.longitude}
+                    latitude={selectedLocation.latitude}
+                  >
+                    <div className="w-8 h-8 bg-red-500 border-2 border-white rounded-full shadow-lg flex items-center justify-center">
+                      <MapPin className="h-4 w-4 text-white" />
+                    </div>
+                  </Marker>
                 )}
-              </MapContainer>
+              </Map>
             </>
           )}
         </div>
