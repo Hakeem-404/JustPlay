@@ -317,7 +317,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
 
         {/* User Location Circle */}
         {latitude && longitude && circleGeoJSON && (
-          <Source id="user-radius" type="geojson" data={circleGeoJSON}>
+          <Source id="user-radius\" type="geojson\" data={circleGeoJSON}>
             <Layer
               id="user-radius-fill"
               type="fill"
