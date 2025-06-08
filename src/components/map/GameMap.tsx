@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import Map, { Marker, Popup, Source, Layer, NavigationControl, GeolocateControl } from 'react-map-gl'
+import Map, { Marker, Popup, NavigationControl, GeolocateControl } from 'react-map-gl'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import { Game, MapFilters } from '../../types/game'
 import { useGeolocation } from '../../hooks/useGeolocation'
@@ -20,7 +20,6 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   const [searchQuery, setSearchQuery] = useState('')
   const [mapLoaded, setMapLoaded] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
-  const [selectedGame, setSelectedGame] = useState<Game | null>(null)
   const [popupInfo, setPopupInfo] = useState<{ game: Game; longitude: number; latitude: number } | null>(null)
 
   const [filters, setFilters] = useState<MapFilters>({
@@ -104,8 +103,8 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
       return true
     })
 
-    // Limit to 50 games for performance
-    return filtered.slice(0, 50)
+    // Limit to 20 games for performance
+    return filtered.slice(0, 20)
   }, [games, debouncedFilters, latitude, longitude])
 
   const handleCenterOnUser = useCallback(() => {
@@ -186,36 +185,6 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
 
     return Object.values(groups)
   }, [filteredGames])
-
-  // Create circle layer for user location radius
-  const circleGeoJSON = useMemo(() => {
-    if (!latitude || !longitude) return null
-
-    const radiusInKm = filters.distance
-    const radiusInMeters = radiusInKm * 1000
-    const points = 64
-    const coords = []
-
-    for (let i = 0; i < points; i++) {
-      const angle = (i / points) * 2 * Math.PI
-      const dx = radiusInMeters * Math.cos(angle)
-      const dy = radiusInMeters * Math.sin(angle)
-      
-      const deltaLat = dy / 111320
-      const deltaLng = dx / (111320 * Math.cos(latitude * Math.PI / 180))
-      
-      coords.push([longitude + deltaLng, latitude + deltaLat])
-    }
-    coords.push(coords[0]) // Close the circle
-
-    return {
-      type: 'Feature',
-      geometry: {
-        type: 'Polygon',
-        coordinates: [coords]
-      }
-    }
-  }, [latitude, longitude, filters.distance])
 
   // Show error state
   if (mapError) {
@@ -315,33 +284,12 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
           showUserHeading={false}
         />
 
-        {/* User Location Circle */}
-        {latitude && longitude && circleGeoJSON && (
-          <Source id="user-radius\" type="geojson\" data={circleGeoJSON}>
-            <Layer
-              id="user-radius-fill"
-              type="fill"
-              paint={{
-                'fill-color': '#3b82f6',
-                'fill-opacity': 0.1
-              }}
-            />
-            <Layer
-              id="user-radius-line"
-              type="line"
-              paint={{
-                'line-color': '#3b82f6',
-                'line-width': 2,
-                'line-opacity': 0.5
-              }}
-            />
-          </Source>
-        )}
-
         {/* User Location Marker */}
         {latitude && longitude && (
           <Marker longitude={longitude} latitude={latitude}>
-            <div className="w-6 h-6 bg-blue-600 border-2 border-white rounded-full shadow-lg"></div>
+            <div className="w-6 h-6 bg-blue-600 border-2 border-white rounded-full shadow-lg">
+              <div className="w-2 h-2 bg-white rounded-full mx-auto mt-1"></div>
+            </div>
           </Marker>
         )}
 
@@ -377,7 +325,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
       <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-sm px-3 py-2 z-[1000]">
         <span className="text-sm text-gray-600">
           {filteredGames.length} game{filteredGames.length !== 1 ? 's' : ''} found
-          {filteredGames.length === 50 && games.length > 50 && ' (showing first 50)'}
+          {filteredGames.length === 20 && games.length > 20 && ' (showing first 20)'}
         </span>
       </div>
     </div>
