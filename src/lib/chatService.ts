@@ -180,7 +180,7 @@ export const chatService = {
     }
   },
 
-  // Real-time subscription for chat messages
+  // Enhanced real-time subscription for chat messages
   subscribeToGameChat(gameId: string, callback: (message: ChatMessage) => void) {
     console.log('📡 Setting up chat subscription for game:', gameId)
     
@@ -195,14 +195,50 @@ export const chatService = {
           filter: `game_id=eq.${gameId}`
         },
         async (payload) => {
-          console.log('🔔 New message received:', payload)
+          console.log('🔔 New message received via real-time:', payload)
           
-          // Get the full message data with user info
-          const { data } = await chatService.getMessages(gameId, 1, 0)
-          if (data && data.length > 0) {
-            const newMessage = data[0]
-            console.log('📨 Broadcasting new message:', newMessage)
-            callback(newMessage)
+          try {
+            // Get the complete message data with user info
+            const { data: messageData, error } = await supabase
+              .from('game_messages')
+              .select(`
+                *,
+                profiles!user_id (
+                  name,
+                  avatar_url
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single()
+
+            if (error) {
+              console.error('❌ Error fetching complete message data:', error)
+              return
+            }
+
+            if (messageData) {
+              // Transform to ChatMessage format
+              const newMessage: ChatMessage = {
+                id: messageData.id,
+                gameId: messageData.game_id,
+                userId: messageData.user_id,
+                userName: messageData.profiles?.name || 'Unknown User',
+                userAvatarUrl: messageData.profiles?.avatar_url || null,
+                content: messageData.content,
+                messageType: messageData.message_type,
+                status: messageData.status,
+                replyTo: messageData.reply_to,
+                editedAt: messageData.edited_at,
+                deletedAt: messageData.deleted_at,
+                createdAt: messageData.created_at,
+                reactions: []
+              }
+
+              console.log('📨 Broadcasting new message to component:', newMessage)
+              callback(newMessage)
+            }
+          } catch (err) {
+            console.error('💥 Error processing real-time message:', err)
           }
         }
       )
@@ -215,14 +251,24 @@ export const chatService = {
           filter: `game_id=eq.${gameId}`
         },
         async (payload) => {
-          console.log('🔔 Message updated:', payload)
+          console.log('🔔 Message updated via real-time:', payload)
           
-          // For updates (edits/deletes), we might want to reload messages
+          // For updates (edits/deletes), we could reload the specific message
           // For now, we'll just log it
         }
       )
       .subscribe((status) => {
         console.log('📡 Chat subscription status:', status)
+        
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to chat for game:', gameId)
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Chat subscription error for game:', gameId)
+        } else if (status === 'TIMED_OUT') {
+          console.error('⏰ Chat subscription timed out for game:', gameId)
+        } else if (status === 'CLOSED') {
+          console.log('🔌 Chat subscription closed for game:', gameId)
+        }
       })
 
     return subscription

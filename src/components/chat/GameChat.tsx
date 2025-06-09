@@ -201,22 +201,37 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
     }
   }, [isVisible, markAsRead])
 
-  // Real-time subscription
+  // Enhanced real-time subscription with better error handling
   useEffect(() => {
     if (!game.id) return
 
-    const subscription = chatService.subscribeToGameChat(game.id, (newMessage) => {
-      setChatState(prev => ({
-        ...prev,
-        messages: [...prev.messages, newMessage],
-        unreadCount: isVisible ? 0 : prev.unreadCount + 1
-      }))
+    console.log('🔔 Setting up real-time subscription for game chat:', game.id)
 
+    const subscription = chatService.subscribeToGameChat(game.id, (newMessage) => {
+      console.log('🔔 Received new message in GameChat component:', newMessage)
+      
+      setChatState(prev => {
+        // Check if message already exists to avoid duplicates
+        const messageExists = prev.messages.some(msg => msg.id === newMessage.id)
+        if (messageExists) {
+          console.log('🔄 Message already exists, skipping duplicate')
+          return prev
+        }
+
+        console.log('➕ Adding new message to chat state')
+        return {
+          ...prev,
+          messages: [...prev.messages, newMessage],
+          unreadCount: isVisible ? 0 : prev.unreadCount + 1
+        }
+      })
+
+      // Update unread count if chat is not visible
       if (!isVisible) {
         onUnreadCountChange?.(chatState.unreadCount + 1)
       }
 
-      // Auto-scroll if user is near bottom
+      // Auto-scroll if user is near bottom or if it's their own message
       if (chatContainerRef.current) {
         const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current
         const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100
@@ -228,9 +243,10 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
     })
 
     return () => {
+      console.log('🔌 Cleaning up chat subscription for game:', game.id)
       subscription.unsubscribe()
     }
-  }, [game.id, isVisible, onUnreadCountChange, chatState.unreadCount, user?.id])
+  }, [game.id, isVisible, onUnreadCountChange, user?.id])
 
   // Auto-scroll on new messages from current user
   useEffect(() => {
