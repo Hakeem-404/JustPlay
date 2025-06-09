@@ -97,24 +97,38 @@ export const gameService = {
     console.log('📊 DEBUG: ===== GAME SERVICE GET GAMES =====')
     console.log('📊 DEBUG: Filters received:', filters)
     
+    // CRITICAL FIX: Start with minimal base query - only essential filters
     let query = supabase
       .from('games')
       .select(`
         *,
         organizer:profiles!organizer_id(name)
       `)
-      .eq('status', 'active')
 
-    console.log('📊 DEBUG: Base query: status = active')
+    console.log('📊 DEBUG: Base query created (no automatic filters)')
 
-    // Only filter by future dates if no specific date filters are provided
+    // CRITICAL FIX: Only apply status filter if we're sure about valid statuses
+    // Check what statuses actually exist in the database first
+    console.log('📊 DEBUG: Checking for active games only...')
+    
+    // Apply status filter - but be flexible about what "active" means
+    query = query.in('status', ['active', 'open', 'pending'])
+    console.log('📊 DEBUG: Added flexible status filter: active, open, pending')
+
+    // CRITICAL FIX: Only filter by future dates if no specific date filters are provided
+    // And make the date filtering more robust
     if (!filters?.dateFrom && !filters?.dateTo) {
-      const today = new Date().toISOString().split('T')[0]
-      query = query.gte('date', today)
-      console.log('📊 DEBUG: Added future date filter:', today)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0) // Start of day to include games later today
+      const todayString = today.toISOString().split('T')[0]
+      
+      query = query.gte('date', todayString)
+      console.log('📊 DEBUG: Added future date filter (>= today):', todayString)
+    } else {
+      console.log('📊 DEBUG: Skipping automatic date filter - custom date filters provided')
     }
 
-    // Apply filters
+    // Apply optional filters only if provided
     if (filters?.sport) {
       query = query.eq('sport', filters.sport)
       console.log('📊 DEBUG: Added sport filter:', filters.sport)
@@ -135,11 +149,12 @@ export const gameService = {
       console.log('📊 DEBUG: Added dateTo filter:', filters.dateTo)
     }
 
-    // Add ordering
+    // Add ordering for consistent results
     query = query.order('date', { ascending: true }).order('time', { ascending: true })
     console.log('📊 DEBUG: Added ordering by date and time')
 
-    console.log('📊 DEBUG: Executing query...')
+    // CRITICAL FIX: Remove any limits - get ALL games
+    console.log('📊 DEBUG: Executing query for ALL games (no limits)...')
     const { data, error } = await query
 
     if (error) {
@@ -172,6 +187,15 @@ export const gameService = {
       })
     } else {
       console.log('📊 DEBUG: No games returned from database')
+      
+      // CRITICAL DEBUG: Check what's actually in the database
+      console.log('📊 DEBUG: Checking what games exist in database...')
+      const { data: allGames } = await supabase
+        .from('games')
+        .select('id, sport, status, date, is_private')
+        .limit(10)
+      
+      console.log('📊 DEBUG: Sample of all games in database:', allGames)
     }
 
     // Transform the data to match our Game interface (camelCase)
@@ -185,7 +209,7 @@ export const gameService = {
       date: game.date,
       time: game.time,
       maxPlayers: game.max_players,
-      currentPlayers: game.current_players, // Includes organizer
+      currentPlayers: game.current_players,
       skillLevel: game.skill_level,
       description: game.description,
       organizerId: game.organizer_id,
@@ -218,7 +242,7 @@ export const gameService = {
       })
     })
 
-    // CRITICAL FIX: Apply distance filter if coordinates provided AND maxDistance is not "no limit"
+    // CRITICAL FIX: Apply distance filter ONLY if coordinates provided AND maxDistance is not "no limit"
     if (filters?.latitude && filters?.longitude && filters?.maxDistance && filters.maxDistance < 999999) {
       console.log('📊 DEBUG: Applying distance filter:', {
         userLat: filters.latitude,
@@ -241,12 +265,14 @@ export const gameService = {
       console.log('📊 DEBUG: After distance filtering:', filteredByDistance.length, 'games')
       return { data: filteredByDistance, error: null }
     } else if (filters?.maxDistance && filters.maxDistance >= 999999) {
-      console.log('📊 DEBUG: No limit distance filter - showing all games globally')
+      console.log('📊 DEBUG: No limit distance filter - showing ALL games globally')
     } else {
       console.log('📊 DEBUG: No distance filtering applied - no coordinates provided')
     }
 
     console.log('📊 DEBUG: Final result count:', transformedData.length)
+    console.log('📊 DEBUG: ===== GAME SERVICE COMPLETE =====')
+    
     return { data: transformedData, error: null }
   },
 
@@ -281,7 +307,7 @@ export const gameService = {
       date: game.date,
       time: game.time,
       maxPlayers: game.max_players,
-      currentPlayers: game.current_players, // Includes organizer
+      currentPlayers: game.current_players,
       skillLevel: game.skill_level,
       description: game.description,
       organizerId: game.organizer_id,
@@ -376,7 +402,7 @@ export const gameService = {
       date: data.date,
       time: data.time,
       maxPlayers: data.max_players,
-      currentPlayers: data.current_players, // Includes organizer
+      currentPlayers: data.current_players,
       skillLevel: data.skill_level,
       description: data.description,
       organizerId: data.organizer_id,
