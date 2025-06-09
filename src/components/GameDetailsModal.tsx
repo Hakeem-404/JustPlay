@@ -15,12 +15,16 @@ import {
   UserMinus,
   ExternalLink,
   Crown,
-  Ban
+  Ban,
+  MessageCircle,
+  Info
 } from 'lucide-react'
 import { Game } from '../types/game'
 import { useAuth } from '../contexts/AuthContext'
 import { gameParticipantService } from '../lib/gameParticipantService'
 import { gameService } from '../lib/gameService'
+import { chatService } from '../lib/chatService'
+import GameChat from './chat/GameChat'
 
 interface GameDetailsModalProps {
   game: Game | null
@@ -50,14 +54,23 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [currentGame, setCurrentGame] = useState<Game | null>(null)
+  
+  // Chat state
+  const [activeTab, setActiveTab] = useState<'info' | 'chat'>('info')
+  const [unreadCount, setUnreadCount] = useState(0)
 
   // Update current game when prop changes
   useEffect(() => {
     if (game) {
       console.log('🎮 GameDetailsModal: Game prop updated:', game)
       setCurrentGame(game)
+      
+      // Load unread count when game changes
+      if (user) {
+        loadUnreadCount(game.id)
+      }
     }
-  }, [game])
+  }, [game, user])
 
   // Load participants when modal opens
   useEffect(() => {
@@ -152,8 +165,20 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
       setSuccess('')
       setShowLeaveConfirm(false)
       setShowCancelConfirm(false)
+      setActiveTab('info') // Reset to info tab
     }
   }, [isOpen])
+
+  const loadUnreadCount = async (gameId: string) => {
+    try {
+      const { data } = await chatService.getUnreadCount(gameId)
+      if (data !== null) {
+        setUnreadCount(data)
+      }
+    } catch (err) {
+      console.error('Error loading unread count:', err)
+    }
+  }
 
   const loadParticipants = async () => {
     if (!currentGame || !user) return
@@ -439,7 +464,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
         aria-label="Close modal"
       />
       
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden relative z-[10000]">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden relative z-[10000] flex flex-col">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-2xl z-[10001]">
           <div className="flex items-start justify-between">
@@ -479,362 +504,408 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
               </button>
             </div>
           </div>
-        </div>
 
-        {/* Content */}
-        <div className="overflow-y-auto max-h-[calc(90vh-200px)]">
-          <div className="p-6 space-y-6">
-            {/* Error/Success Messages */}
-            {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
-                <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
-                <span className="text-red-700 text-sm">{error}</span>
-              </div>
-            )}
-
-            {success && (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2">
-                <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                <span className="text-green-700 text-sm">{success}</span>
-              </div>
-            )}
-
-            {/* Game Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div className="flex items-center space-x-3">
-                  <Calendar className="h-5 w-5 text-blue-600" />
-                  <div>
-                    <p className="font-medium text-gray-900">Date & Time</p>
-                    <p className="text-gray-600">{formatDate(displayGame.date)} at {displayGame.time}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <Users className="h-5 w-5 text-green-600" />
-                  <div>
-                    <p className="font-medium text-gray-900">Players</p>
-                    <p className="text-gray-600">
-                      {displayGame.currentPlayers}/{displayGame.maxPlayers} joined
-                      {isGameFull() && <span className="text-red-600 ml-2">(Full)</span>}
-                      {spotsLeft > 0 && (
-                        <span className="text-green-600 ml-2">({spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left)</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <User className="h-5 w-5 text-purple-600" />
-                  <div>
-                    <p className="font-medium text-gray-900">Organizer</p>
-                    <p className="text-gray-600">{displayGame.organizerName}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center space-x-3">
-                  <Target className="h-5 w-5 text-orange-600" />
-                  <div>
-                    <p className="font-medium text-gray-900">Skill Level</p>
-                    <p className="text-gray-600">
-                      {displayGame.skillLevel === 'any' ? 'All levels welcome' : displayGame.skillLevel.charAt(0).toUpperCase() + displayGame.skillLevel.slice(1)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <Clock className="h-5 w-5 text-gray-600" />
-                  <div>
-                    <p className="font-medium text-gray-900">Status</p>
-                    <p className="text-gray-600">
-                      {displayGame.status === 'cancelled' ? 'Cancelled' :
-                       isGameInPast() ? 'Past Game' : 
-                       displayGame.status.charAt(0).toUpperCase() + displayGame.status.slice(1)}
-                    </p>
-                  </div>
-                </div>
-
-                {displayGame.isPrivate && (
-                  <div className="flex items-center space-x-3">
-                    <AlertCircle className="h-5 w-5 text-yellow-600" />
-                    <div>
-                      <p className="font-medium text-gray-900">Privacy</p>
-                      <p className="text-gray-600">Private Game</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Description */}
-            {displayGame.description && (
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2">Description</h3>
-                <p className="text-gray-700 leading-relaxed">{displayGame.description}</p>
-              </div>
-            )}
-
-            {/* Location Details */}
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-2">Location</h3>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{displayGame.location}</p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {displayGame.latitude.toFixed(4)}, {displayGame.longitude.toFixed(4)}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const url = `https://www.google.com/maps?q=${displayGame.latitude},${displayGame.longitude}`
-                      window.open(url, '_blank')
-                    }}
-                    className="text-blue-600 hover:text-blue-700 flex items-center space-x-1 text-sm ml-4"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    <span>Open in Maps</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Participants */}
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-4">
-                Participants ({joinedParticipants.length}/{displayGame.maxPlayers})
-                {waitlistParticipants.length > 0 && (
-                  <span className="text-yellow-600 ml-2">
-                    + {waitlistParticipants.length} waitlist
-                  </span>
-                )}
-              </h3>
-              
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                  <span className="ml-2 text-gray-600">Loading participants...</span>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Joined Participants */}
-                  {joinedParticipants.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Joined Players</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {joinedParticipants.map((participant) => (
-                          <div key={participant.participant_id} className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
-                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center text-white font-bold">
-                              {participant.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center space-x-2">
-                                <p className="font-medium text-gray-900 truncate">{participant.name}</p>
-                                {participant.user_id === displayGame.organizerId && (
-                                  <Crown className="h-3 w-3 text-yellow-500" title="Organizer" />
-                                )}
-                              </div>
-                              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                <Star className="h-3 w-3 text-yellow-500" />
-                                <span>{participant.average_rating.toFixed(1)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Waitlist */}
-                  {waitlistParticipants.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">
-                        Waitlist ({waitlistParticipants.length})
-                      </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {waitlistParticipants.map((participant, index) => (
-                          <div key={participant.participant_id} className="flex items-center space-x-3 p-3 bg-yellow-50 rounded-lg">
-                            <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-full flex items-center justify-center text-white font-bold">
-                              {participant.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 truncate">{participant.name}</p>
-                              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                <Star className="h-3 w-3 text-yellow-500" />
-                                <span>{participant.average_rating.toFixed(1)}</span>
-                                <span className="text-yellow-600">• #{index + 1} in line</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {joinedParticipants.length === 0 && waitlistParticipants.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <Users className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                      <p>No participants yet. Be the first to join!</p>
-                    </div>
-                  )}
-                </div>
+          {/* Tab Navigation */}
+          <div className="flex space-x-1 mt-4 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setActiveTab('info')}
+              className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'info'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Info className="h-4 w-4" />
+              <span>Game Info</span>
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('chat')
+                setUnreadCount(0) // Clear unread count when opening chat
+              }}
+              className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors relative ${
+                activeTab === 'chat'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span>Chat</span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
               )}
-            </div>
+            </button>
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 rounded-b-2xl z-[10001]">
-          {showLeaveConfirm ? (
-            <div className="space-y-4">
-              <div className="text-center">
-                <p className="text-gray-900 font-medium">Are you sure you want to leave this game?</p>
-                <p className="text-sm text-gray-600 mt-1">This action cannot be undone.</p>
-              </div>
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowLeaveConfirm(false)}
-                  className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleLeaveGame}
-                  disabled={actionLoading}
-                  className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
-                >
-                  {actionLoading ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+        {/* Content */}
+        <div className="flex-1 overflow-hidden">
+          {activeTab === 'info' ? (
+            <div className="overflow-y-auto max-h-[calc(90vh-200px)]">
+              <div className="p-6 space-y-6">
+                {/* Error/Success Messages */}
+                {error && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
+                    <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+                    <span className="text-red-700 text-sm">{error}</span>
+                  </div>
+                )}
+
+                {success && (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span className="text-green-700 text-sm">{success}</span>
+                  </div>
+                )}
+
+                {/* Game Details */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-3">
+                      <Calendar className="h-5 w-5 text-blue-600" />
+                      <div>
+                        <p className="font-medium text-gray-900">Date & Time</p>
+                        <p className="text-gray-600">{formatDate(displayGame.date)} at {displayGame.time}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3">
+                      <Users className="h-5 w-5 text-green-600" />
+                      <div>
+                        <p className="font-medium text-gray-900">Players</p>
+                        <p className="text-gray-600">
+                          {displayGame.currentPlayers}/{displayGame.maxPlayers} joined
+                          {isGameFull() && <span className="text-red-600 ml-2">(Full)</span>}
+                          {spotsLeft > 0 && (
+                            <span className="text-green-600 ml-2">({spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left)</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3">
+                      <User className="h-5 w-5 text-purple-600" />
+                      <div>
+                        <p className="font-medium text-gray-900">Organizer</p>
+                        <p className="text-gray-600">{displayGame.organizerName}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-3">
+                      <Target className="h-5 w-5 text-orange-600" />
+                      <div>
+                        <p className="font-medium text-gray-900">Skill Level</p>
+                        <p className="text-gray-600">
+                          {displayGame.skillLevel === 'any' ? 'All levels welcome' : displayGame.skillLevel.charAt(0).toUpperCase() + displayGame.skillLevel.slice(1)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3">
+                      <Clock className="h-5 w-5 text-gray-600" />
+                      <div>
+                        <p className="font-medium text-gray-900">Status</p>
+                        <p className="text-gray-600">
+                          {displayGame.status === 'cancelled' ? 'Cancelled' :
+                           isGameInPast() ? 'Past Game' : 
+                           displayGame.status.charAt(0).toUpperCase() + displayGame.status.slice(1)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {displayGame.isPrivate && (
+                      <div className="flex items-center space-x-3">
+                        <AlertCircle className="h-5 w-5 text-yellow-600" />
+                        <div>
+                          <p className="font-medium text-gray-900">Privacy</p>
+                          <p className="text-gray-600">Private Game</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Description */}
+                {displayGame.description && (
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-2">Description</h3>
+                    <p className="text-gray-700 leading-relaxed">{displayGame.description}</p>
+                  </div>
+                )}
+
+                {/* Location Details */}
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Location</h3>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{displayGame.location}</p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {displayGame.latitude.toFixed(4)}, {displayGame.longitude.toFixed(4)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const url = `https://www.google.com/maps?q=${displayGame.latitude},${displayGame.longitude}`
+                          window.open(url, '_blank')
+                        }}
+                        className="text-blue-600 hover:text-blue-700 flex items-center space-x-1 text-sm ml-4"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        <span>Open in Maps</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Participants */}
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-4">
+                    Participants ({joinedParticipants.length}/{displayGame.maxPlayers})
+                    {waitlistParticipants.length > 0 && (
+                      <span className="text-yellow-600 ml-2">
+                        + {waitlistParticipants.length} waitlist
+                      </span>
+                    )}
+                  </h3>
+                  
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                      <span className="ml-2 text-gray-600">Loading participants...</span>
+                    </div>
                   ) : (
-                    <>
-                      <UserMinus className="h-4 w-4" />
-                      <span>Leave Game</span>
-                    </>
+                    <div className="space-y-4">
+                      {/* Joined Participants */}
+                      {joinedParticipants.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-700 mb-2">Joined Players</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {joinedParticipants.map((participant) => (
+                              <div key={participant.participant_id} className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
+                                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center text-white font-bold">
+                                  {participant.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center space-x-2">
+                                    <p className="font-medium text-gray-900 truncate">{participant.name}</p>
+                                    {participant.user_id === displayGame.organizerId && (
+                                      <Crown className="h-3 w-3 text-yellow-500" title="Organizer" />
+                                    )}
+                                  </div>
+                                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                    <Star className="h-3 w-3 text-yellow-500" />
+                                    <span>{participant.average_rating.toFixed(1)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Waitlist */}
+                      {waitlistParticipants.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-700 mb-2">
+                            Waitlist ({waitlistParticipants.length})
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {waitlistParticipants.map((participant, index) => (
+                              <div key={participant.participant_id} className="flex items-center space-x-3 p-3 bg-yellow-50 rounded-lg">
+                                <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-full flex items-center justify-center text-white font-bold">
+                                  {participant.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-gray-900 truncate">{participant.name}</p>
+                                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                    <Star className="h-3 w-3 text-yellow-500" />
+                                    <span>{participant.average_rating.toFixed(1)}</span>
+                                    <span className="text-yellow-600">• #{index + 1} in line</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {joinedParticipants.length === 0 && waitlistParticipants.length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                          <Users className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                          <p>No participants yet. Be the first to join!</p>
+                        </div>
+                      )}
+                    </div>
                   )}
-                </button>
-              </div>
-            </div>
-          ) : showCancelConfirm ? (
-            <div className="space-y-4">
-              <div className="text-center">
-                <p className="text-gray-900 font-medium">Are you sure you want to cancel this game?</p>
-                <p className="text-sm text-gray-600 mt-1">All participants will be notified. This action cannot be undone.</p>
-              </div>
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowCancelConfirm(false)}
-                  className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-                >
-                  Keep Game
-                </button>
-                <button
-                  onClick={handleCancelGame}
-                  disabled={actionLoading}
-                  className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
-                >
-                  {actionLoading ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    <>
-                      <Ban className="h-4 w-4" />
-                      <span>Cancel Game</span>
-                    </>
-                  )}
-                </button>
+                </div>
               </div>
             </div>
           ) : (
-            <div className="flex space-x-3">
-              <button
-                onClick={onClose}
-                className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-              >
-                Close
-              </button>
-              
-              {user && (
-                <>
-                  {/* Show "Your Game" and cancel option for organizers */}
-                  {isUserOrganizer() && (
-                    <>
-                      <button
-                        disabled
-                        className="flex-1 bg-blue-100 text-blue-700 py-3 px-4 rounded-lg font-medium cursor-default flex items-center justify-center space-x-2"
-                      >
-                        <Crown className="h-4 w-4" />
-                        <span>Your Game</span>
-                      </button>
-                      {displayGame.status === 'active' && !isGameInPast() && (
-                        <button
-                          onClick={() => setShowCancelConfirm(true)}
-                          className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
-                        >
-                          <Ban className="h-4 w-4" />
-                          <span>Cancel Game</span>
-                        </button>
-                      )}
-                    </>
-                  )}
-
-                  {/* Show join/leave buttons for non-organizers */}
-                  {!isUserOrganizer() && (
-                    <>
-                      {userParticipation === 'none' && canJoinGame() && (
-                        <button
-                          onClick={handleJoinGame}
-                          disabled={actionLoading}
-                          className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
-                        >
-                          {actionLoading ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          ) : (
-                            <>
-                              <UserPlus className="h-4 w-4" />
-                              <span>{isGameFull() ? 'Join Waitlist' : 'Join Game'}</span>
-                            </>
-                          )}
-                        </button>
-                      )}
-
-                      {userParticipation === 'joined' && (
-                        <button
-                          onClick={() => setShowLeaveConfirm(true)}
-                          className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
-                        >
-                          <UserMinus className="h-4 w-4" />
-                          <span>Leave Game</span>
-                        </button>
-                      )}
-
-                      {userParticipation === 'waitlist' && (
-                        <button
-                          onClick={() => setShowLeaveConfirm(true)}
-                          className="flex-1 bg-yellow-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-yellow-700 transition-colors flex items-center justify-center space-x-2"
-                        >
-                          <UserMinus className="h-4 w-4" />
-                          <span>Leave Waitlist</span>
-                        </button>
-                      )}
-
-                      {!canJoinGame() && userParticipation === 'none' && (
-                        <button
-                          disabled
-                          className="flex-1 bg-gray-300 text-gray-500 py-3 px-4 rounded-lg font-medium cursor-not-allowed"
-                        >
-                          {displayGame.status === 'cancelled' ? 'Game Cancelled' :
-                           isGameInPast() ? 'Game Ended' : 
-                           displayGame.status !== 'active' ? 'Game Inactive' : 'Cannot Join'}
-                        </button>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-            </div>
+            <GameChat 
+              game={displayGame} 
+              isVisible={activeTab === 'chat'} 
+              onUnreadCountChange={setUnreadCount}
+            />
           )}
         </div>
+
+        {/* Footer Actions - Only show for info tab */}
+        {activeTab === 'info' && (
+          <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 rounded-b-2xl z-[10001]">
+            {showLeaveConfirm ? (
+              <div className="space-y-4">
+                <div className="text-center">
+                  <p className="text-gray-900 font-medium">Are you sure you want to leave this game?</p>
+                  <p className="text-sm text-gray-600 mt-1">This action cannot be undone.</p>
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowLeaveConfirm(false)}
+                    className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleLeaveGame}
+                    disabled={actionLoading}
+                    className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+                  >
+                    {actionLoading ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    ) : (
+                      <>
+                        <UserMinus className="h-4 w-4" />
+                        <span>Leave Game</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : showCancelConfirm ? (
+              <div className="space-y-4">
+                <div className="text-center">
+                  <p className="text-gray-900 font-medium">Are you sure you want to cancel this game?</p>
+                  <p className="text-sm text-gray-600 mt-1">All participants will be notified. This action cannot be undone.</p>
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowCancelConfirm(false)}
+                    className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                  >
+                    Keep Game
+                  </button>
+                  <button
+                    onClick={handleCancelGame}
+                    disabled={actionLoading}
+                    className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+                  >
+                    {actionLoading ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    ) : (
+                      <>
+                        <Ban className="h-4 w-4" />
+                        <span>Cancel Game</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex space-x-3">
+                <button
+                  onClick={onClose}
+                  className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                >
+                  Close
+                </button>
+                
+                {user && (
+                  <>
+                    {/* Show "Your Game" and cancel option for organizers */}
+                    {isUserOrganizer() && (
+                      <>
+                        <button
+                          disabled
+                          className="flex-1 bg-blue-100 text-blue-700 py-3 px-4 rounded-lg font-medium cursor-default flex items-center justify-center space-x-2"
+                        >
+                          <Crown className="h-4 w-4" />
+                          <span>Your Game</span>
+                        </button>
+                        {displayGame.status === 'active' && !isGameInPast() && (
+                          <button
+                            onClick={() => setShowCancelConfirm(true)}
+                            className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
+                          >
+                            <Ban className="h-4 w-4" />
+                            <span>Cancel Game</span>
+                          </button>
+                        )}
+                      </>
+                    )}
+
+                    {/* Show join/leave buttons for non-organizers */}
+                    {!isUserOrganizer() && (
+                      <>
+                        {userParticipation === 'none' && canJoinGame() && (
+                          <button
+                            onClick={handleJoinGame}
+                            disabled={actionLoading}
+                            className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+                          >
+                            {actionLoading ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            ) : (
+                              <>
+                                <UserPlus className="h-4 w-4" />
+                                <span>{isGameFull() ? 'Join Waitlist' : 'Join Game'}</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+
+                        {userParticipation === 'joined' && (
+                          <button
+                            onClick={() => setShowLeaveConfirm(true)}
+                            className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
+                          >
+                            <UserMinus className="h-4 w-4" />
+                            <span>Leave Game</span>
+                          </button>
+                        )}
+
+                        {userParticipation === 'waitlist' && (
+                          <button
+                            onClick={() => setShowLeaveConfirm(true)}
+                            className="flex-1 bg-yellow-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-yellow-700 transition-colors flex items-center justify-center space-x-2"
+                          >
+                            <UserMinus className="h-4 w-4" />
+                            <span>Leave Waitlist</span>
+                          </button>
+                        )}
+
+                        {!canJoinGame() && userParticipation === 'none' && (
+                          <button
+                            disabled
+                            className="flex-1 bg-gray-300 text-gray-500 py-3 px-4 rounded-lg font-medium cursor-not-allowed"
+                          >
+                            {displayGame.status === 'cancelled' ? 'Game Cancelled' :
+                             isGameInPast() ? 'Game Ended' : 
+                             displayGame.status !== 'active' ? 'Game Inactive' : 'Cannot Join'}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
