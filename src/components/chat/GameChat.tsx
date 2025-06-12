@@ -27,6 +27,7 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messageInputRef = useRef<HTMLTextAreaElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
+  const subscriptionRef = useRef<any>(null) // CRITICAL FIX: Use ref for subscription cleanup
   
   const [chatState, setChatState] = useState<ChatState>({
     messages: [],
@@ -42,6 +43,24 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null)
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+
+  // CRITICAL FIX: Message deduplication
+  const addMessageWithDeduplication = useCallback((newMessage: ChatMessage) => {
+    setChatState(prev => {
+      // Check if message already exists
+      const messageExists = prev.messages.some(msg => msg.id === newMessage.id)
+      if (messageExists) {
+        console.log('🔄 Message already exists, skipping duplicate:', newMessage.id)
+        return prev
+      }
+
+      console.log('➕ Adding new message to chat state:', newMessage.id)
+      return {
+        ...prev,
+        messages: [...prev.messages, newMessage]
+      }
+    })
+  }, [])
 
   // Load initial messages
   const loadMessages = useCallback(async (offset = 0) => {
@@ -97,11 +116,34 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
     }
   }, [isVisible, game.id, chatState.unreadCount, onUnreadCountChange])
 
-  // Send message
+  // CRITICAL FIX: Optimistic message sending
   const handleSendMessage = async () => {
     if (!newMessage.trim() || sending || !user) return
 
     setSending(true)
+    
+    // CRITICAL FIX: Optimistic UI update
+    const optimisticMessage: ChatMessage = {
+      id: `temp-${Date.now()}`,
+      gameId: game.id,
+      userId: user.id,
+      userName: user.email?.split('@')[0] || 'You',
+      userAvatarUrl: null,
+      content: newMessage.trim(),
+      messageType: 'text',
+      status: 'sent',
+      replyTo: replyTo?.id,
+      editedAt: null,
+      deletedAt: null,
+      createdAt: new Date().toISOString(),
+      reactions: []
+    }
+
+    // Add optimistic message immediately
+    addMessageWithDeduplication(optimisticMessage)
+    setNewMessage('')
+    setReplyTo(null)
+
     try {
       if (editingMessage) {
         // Edit existing message
@@ -109,24 +151,41 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
         setEditingMessage(null)
       } else {
         // Send new message
-        const { error } = await chatService.sendMessage(game.id, {
+        const { data, error } = await chatService.sendMessage(game.id, {
           content: newMessage.trim(),
           replyTo: replyTo?.id
         })
 
         if (error) {
-          setChatState(prev => ({ ...prev, error: 'Failed to send message' }))
+          // Remove optimistic message on error
+          setChatState(prev => ({
+            ...prev,
+            messages: prev.messages.filter(msg => msg.id !== optimisticMessage.id),
+            error: 'Failed to send message'
+          }))
           return
+        }
+
+        // Replace optimistic message with real message
+        if (data) {
+          setChatState(prev => ({
+            ...prev,
+            messages: prev.messages.map(msg => 
+              msg.id === optimisticMessage.id ? data : msg
+            )
+          }))
         }
       }
 
-      setNewMessage('')
-      setReplyTo(null)
-      
       // Auto-scroll to bottom
       setTimeout(() => scrollToBottom(), 100)
     } catch (err) {
-      setChatState(prev => ({ ...prev, error: 'Failed to send message' }))
+      // Remove optimistic message on error
+      setChatState(prev => ({
+        ...prev,
+        messages: prev.messages.filter(msg => msg.id !== optimisticMessage.id),
+        error: 'Failed to send message'
+      }))
     } finally {
       setSending(false)
     }
@@ -201,33 +260,33 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
     }
   }, [isVisible, markAsRead])
 
-  // Enhanced real-time subscription with better error handling
+  // CRITICAL FIX: Enhanced real-time subscription with proper cleanup
   useEffect(() => {
     if (!game.id) return
 
     console.log('🔔 Setting up real-time subscription for game chat:', game.id)
 
-    const subscription = chatService.subscribeToGameChat(game.id, (newMessage) => {
+    // Clean up existing subscription
+    if (subscriptionRef.current) {
+      console.log('🔌 Cleaning up existing subscription')
+      subscriptionRef.current.unsubscribe()
+    }
+
+    // Create new subscription
+    subscriptionRef.current = chatService.subscribeToGameChat(game.id, (newMessage) => {
       console.log('🔔 Received new message in GameChat component:', newMessage)
       
-      setChatState(prev => {
-        // Check if message already exists to avoid duplicates
-        const messageExists = prev.messages.some(msg => msg.id === newMessage.id)
-        if (messageExists) {
-          console.log('🔄 Message already exists, skipping duplicate')
-          return prev
-        }
+      // Don't add our own optimistic messages again
+      if (newMessage.id.startsWith('temp-')) {
+        console.log('🔄 Skipping optimistic message from real-time')
+        return
+      }
 
-        console.log('➕ Adding new message to chat state')
-        return {
-          ...prev,
-          messages: [...prev.messages, newMessage],
-          unreadCount: isVisible ? 0 : prev.unreadCount + 1
-        }
-      })
+      addMessageWithDeduplication(newMessage)
 
       // Update unread count if chat is not visible
       if (!isVisible) {
+        setChatState(prev => ({ ...prev, unreadCount: prev.unreadCount + 1 }))
         onUnreadCountChange?.(chatState.unreadCount + 1)
       }
 
@@ -244,9 +303,12 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
 
     return () => {
       console.log('🔌 Cleaning up chat subscription for game:', game.id)
-      subscription.unsubscribe()
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe()
+        subscriptionRef.current = null
+      }
     }
-  }, [game.id, isVisible, onUnreadCountChange, user?.id])
+  }, [game.id, isVisible, onUnreadCountChange, user?.id, addMessageWithDeduplication])
 
   // Auto-scroll on new messages from current user
   useEffect(() => {
@@ -316,6 +378,7 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
               const isConsecutive = isConsecutiveMessage(message, prevMessage)
               const isOwn = message.userId === user?.id
               const isDeleted = !!message.deletedAt
+              const isOptimistic = message.id.startsWith('temp-')
 
               return (
                 <div
@@ -340,6 +403,9 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
                         <div className={`flex items-center space-x-2 mb-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
                           <span className="text-sm font-medium text-gray-700">{message.userName}</span>
                           <span className="text-xs text-gray-500">{formatMessageTime(message.createdAt)}</span>
+                          {isOptimistic && (
+                            <span className="text-xs text-gray-400">Sending...</span>
+                          )}
                         </div>
                       )}
 
@@ -356,7 +422,7 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
                           isOwn
                             ? 'bg-blue-600 text-white'
                             : 'bg-gray-100 text-gray-900'
-                        } ${isDeleted ? 'opacity-60 italic' : ''}`}
+                        } ${isDeleted ? 'opacity-60 italic' : ''} ${isOptimistic ? 'opacity-70' : ''}`}
                       >
                         <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
                         {message.editedAt && !isDeleted && (
@@ -365,7 +431,7 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
                       </div>
 
                       {/* Message actions */}
-                      {!isDeleted && (
+                      {!isDeleted && !isOptimistic && (
                         <div className={`absolute top-0 ${isOwn ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'} opacity-0 group-hover:opacity-100 transition-opacity`}>
                           <div className="flex items-center space-x-1 bg-white border border-gray-200 rounded-lg shadow-sm p-1">
                             <button

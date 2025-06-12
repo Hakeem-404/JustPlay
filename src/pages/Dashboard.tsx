@@ -22,9 +22,10 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const { latitude, longitude } = useGeolocation()
 
-  const [filters, setFilters] = useState<MapFilters>({
+  // CRITICAL FIX: Dashboard manages mapFilters as single source of truth
+  const [mapFilters, setMapFilters] = useState<MapFilters>({
     sports: [],
-    distance: 100, // Increased default from 10km to 100km
+    distance: 100, // Default to 100km
     dateRange: 'all',
     skillLevel: 'all'
   })
@@ -42,22 +43,28 @@ export default function Dashboard() {
     return R * c
   }
 
+  // CRITICAL FIX: Handle map filter changes from GameMap
+  const handleMapFiltersChange = (newFilters: MapFilters) => {
+    console.log('🔍 DEBUG: Dashboard received filter change:', newFilters)
+    setMapFilters(newFilters)
+  }
+
   const loadGames = async () => {
     setLoading(true)
     setError(null)
 
     try {
-      console.log('🔍 DEBUG: ===== STARTING GAME LOAD =====')
-      console.log('🔍 DEBUG: Current filters:', filters)
+      console.log('🔍 DEBUG: ===== STARTING GAME LOAD IN DASHBOARD =====')
+      console.log('🔍 DEBUG: Current mapFilters:', mapFilters)
       console.log('🔍 DEBUG: User location:', { latitude, longitude })
 
       // Build filter object for API
       const apiFilters: any = {}
       
       // CRITICAL FIX: Only apply distance filter if user location is available AND distance is not "no limit"
-      const isNoLimit = filters.distance >= 999999
+      const isNoLimit = mapFilters.distance >= 999999
       console.log('🔍 DEBUG: Distance filter check:', {
-        distance: filters.distance,
+        distance: mapFilters.distance,
         isNoLimit,
         hasLocation: !!(latitude && longitude)
       })
@@ -65,7 +72,7 @@ export default function Dashboard() {
       if (latitude && longitude && !isNoLimit) {
         apiFilters.latitude = latitude
         apiFilters.longitude = longitude
-        apiFilters.maxDistance = filters.distance
+        apiFilters.maxDistance = mapFilters.distance
         console.log('🔍 DEBUG: Distance filtering ENABLED:', apiFilters)
       } else {
         console.log('🔍 DEBUG: Distance filtering DISABLED:', {
@@ -78,7 +85,7 @@ export default function Dashboard() {
       const todayString = today.toISOString().split('T')[0]
       console.log('🔍 DEBUG: Today date:', todayString)
       
-      switch (filters.dateRange) {
+      switch (mapFilters.dateRange) {
         case 'today':
           apiFilters.dateFrom = todayString
           apiFilters.dateTo = todayString
@@ -104,8 +111,8 @@ export default function Dashboard() {
           console.log('🔍 DEBUG: No date filter applied (showing all future games)')
       }
 
-      if (filters.skillLevel !== 'all') {
-        apiFilters.skillLevel = filters.skillLevel
+      if (mapFilters.skillLevel !== 'all') {
+        apiFilters.skillLevel = mapFilters.skillLevel
         console.log('🔍 DEBUG: Skill level filter applied:', apiFilters.skillLevel)
       }
 
@@ -154,11 +161,11 @@ export default function Dashboard() {
       console.log('🔍 DEBUG: Before any filtering:', filteredGames.length, 'games')
       
       // Sports filter
-      if (filters.sports.length > 0) {
-        console.log('🔍 DEBUG: Applying sports filter:', filters.sports)
+      if (mapFilters.sports.length > 0) {
+        console.log('🔍 DEBUG: Applying sports filter:', mapFilters.sports)
         const beforeSportsFilter = filteredGames.length
         filteredGames = filteredGames.filter(game => {
-          const included = filters.sports.includes(game.sport)
+          const included = mapFilters.sports.includes(game.sport)
           console.log(`🔍 DEBUG: Game "${game.sport}" ${included ? 'INCLUDED' : 'EXCLUDED'} by sports filter`)
           return included
         })
@@ -237,12 +244,13 @@ export default function Dashboard() {
     }
   }
 
+  // CRITICAL FIX: Load games when mapFilters change
   useEffect(() => {
-    console.log('🔍 DEBUG: useEffect triggered - loading games')
-    console.log('🔍 DEBUG: Current filters:', filters)
+    console.log('🔍 DEBUG: useEffect triggered - loading games due to filter change')
+    console.log('🔍 DEBUG: Current mapFilters:', mapFilters)
     console.log('🔍 DEBUG: User location:', { latitude, longitude })
     loadGames()
-  }, [filters, latitude, longitude])
+  }, [mapFilters, latitude, longitude]) // Watch mapFilters instead of filters
 
   // Load my games when switching to that view
   useEffect(() => {
@@ -281,7 +289,7 @@ export default function Dashboard() {
       gamesSubscription.unsubscribe()
       participantSubscription.unsubscribe()
     }
-  }, [user, filters, latitude, longitude, viewMode])
+  }, [user, mapFilters, latitude, longitude, viewMode])
 
   const handleGameClick = (game: Game) => {
     console.log('🔍 DEBUG: Game clicked:', game.id, game.sport)
@@ -381,10 +389,10 @@ export default function Dashboard() {
   }
 
   const getDistanceStatusText = () => {
-    if (filters.distance >= 999999) {
+    if (mapFilters.distance >= 999999) {
       return 'Showing all games worldwide'
     } else if (latitude && longitude) {
-      return `Within ${filters.distance === 100 ? '100km' : `${filters.distance}km`}`
+      return `Within ${mapFilters.distance === 100 ? '100km' : `${mapFilters.distance}km`}`
     } else {
       return 'Location access needed for distance filtering'
     }
@@ -546,6 +554,8 @@ export default function Dashboard() {
             games={games}
             onGameClick={handleGameClick}
             className="h-full"
+            mapFilters={mapFilters}
+            onMapFiltersChange={handleMapFiltersChange}
           />
         ) : viewMode === 'my-games' ? (
           <div className="h-full overflow-auto p-4 sm:p-6 lg:p-8">
@@ -731,8 +741,8 @@ export default function Dashboard() {
               {games.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-gray-400 mb-4">
-                    <svg className="h-16 w-16 mx-auto\" fill="none\" viewBox="0 0 24 24\" stroke="currentColor">
-                      <path strokeLinecap="round\" strokeLinejoin="round\" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <svg className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No games found</h3>

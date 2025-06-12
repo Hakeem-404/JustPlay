@@ -10,24 +10,26 @@ interface GameMapProps {
   games: Game[]
   onGameClick: (game: Game) => void
   className?: string
+  // CRITICAL FIX: Accept mapFilters and onMapFiltersChange as props
+  mapFilters: MapFilters
+  onMapFiltersChange: (filters: MapFilters) => void
 }
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
-export default function GameMap({ games, onGameClick, className = '' }: GameMapProps) {
+export default function GameMap({ 
+  games, 
+  onGameClick, 
+  className = '',
+  mapFilters,
+  onMapFiltersChange
+}: GameMapProps) {
   const { latitude, longitude, error: locationError, requestLocation } = useGeolocation()
   const mapRef = useRef<any>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [mapLoaded, setMapLoaded] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
   const [popupInfo, setPopupInfo] = useState<{ game: Game; longitude: number; latitude: number } | null>(null)
-
-  const [filters, setFilters] = useState<MapFilters>({
-    sports: [],
-    distance: 100, // Increased default from 10km to 100km
-    dateRange: 'all',
-    skillLevel: 'all'
-  })
 
   const [viewState, setViewState] = useState({
     longitude: -74.0060, // NYC default
@@ -51,7 +53,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
   // Update view when user location is available OR when showing global games
   useEffect(() => {
     if (mapLoaded) {
-      if (filters.distance >= 999999 && games.length > 0) {
+      if (mapFilters.distance >= 999999 && games.length > 0) {
         // For global view, fit all games on the map
         console.log('🗺️ DEBUG: Fitting map to show all games globally')
         const bounds = games.reduce((bounds, game) => {
@@ -78,113 +80,24 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
         }))
       }
     }
-  }, [latitude, longitude, mapLoaded, filters.distance, games])
+  }, [latitude, longitude, mapLoaded, mapFilters.distance, games])
 
-  // Debounced filter changes
-  const [debouncedFilters, setDebouncedFilters] = useState(filters)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedFilters(filters)
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [filters])
-
-  // Filter games based on current filters
-  const filteredGames = useMemo(() => {
-    console.log('🗺️ DEBUG: ===== FILTERING GAMES IN MAP =====')
-    console.log('🗺️ DEBUG: Input games:', games.length)
-    console.log('🗺️ DEBUG: Current filters:', debouncedFilters)
-    console.log('🗺️ DEBUG: User location:', { latitude, longitude })
+  // CRITICAL FIX: Use games prop directly instead of filtering here
+  // All filtering is now done in Dashboard component
+  const displayGames = useMemo(() => {
+    console.log('🗺️ DEBUG: ===== DISPLAYING GAMES IN MAP =====')
+    console.log('🗺️ DEBUG: Input games from Dashboard:', games.length)
+    console.log('🗺️ DEBUG: Game IDs:', games.map(g => g.id))
     
-    const filtered = games.filter(game => {
-      console.log(`🗺️ DEBUG: Checking game ${game.id} (${game.sport})`)
-      
-      // Sport filter
-      if (debouncedFilters.sports.length > 0 && !debouncedFilters.sports.includes(game.sport)) {
-        console.log(`🗺️ DEBUG: Game ${game.id} EXCLUDED by sport filter`)
-        return false
-      }
-
-      // CRITICAL FIX: Distance filter (only if user location is available AND not "no limit")
-      const isNoLimit = debouncedFilters.distance >= 999999
-      console.log(`🗺️ DEBUG: Game ${game.id} distance check:`, {
-        hasLocation: !!(latitude && longitude),
-        isNoLimit,
-        distance: debouncedFilters.distance
-      })
-
-      if (latitude && longitude && !isNoLimit) {
-        const distance = calculateDistance(
-          latitude, longitude,
-          game.latitude, game.longitude
-        )
-        console.log(`🗺️ DEBUG: Game ${game.id} distance: ${distance.toFixed(2)}km (max: ${debouncedFilters.distance}km)`)
-        if (distance > debouncedFilters.distance) {
-          console.log(`🗺️ DEBUG: Game ${game.id} EXCLUDED by distance filter`)
-          return false
-        }
-      } else {
-        console.log(`🗺️ DEBUG: Game ${game.id} - no distance filter applied (${isNoLimit ? 'no limit' : 'no location'})`)
-      }
-
-      // Date filter
-      const gameDate = new Date(game.date)
-      const today = new Date()
-      const tomorrow = new Date(today)
-      tomorrow.setDate(tomorrow.getDate() + 1)
-      const weekFromNow = new Date(today)
-      weekFromNow.setDate(weekFromNow.getDate() + 7)
-
-      console.log(`🗺️ DEBUG: Game ${game.id} date check:`, {
-        gameDate: gameDate.toISOString().split('T')[0],
-        today: today.toISOString().split('T')[0],
-        filter: debouncedFilters.dateRange
-      })
-
-      switch (debouncedFilters.dateRange) {
-        case 'today':
-          if (gameDate.toDateString() !== today.toDateString()) {
-            console.log(`🗺️ DEBUG: Game ${game.id} EXCLUDED by today filter`)
-            return false
-          }
-          break
-        case 'tomorrow':
-          if (gameDate.toDateString() !== tomorrow.toDateString()) {
-            console.log(`🗺️ DEBUG: Game ${game.id} EXCLUDED by tomorrow filter`)
-            return false
-          }
-          break
-        case 'week':
-          if (gameDate > weekFromNow) {
-            console.log(`🗺️ DEBUG: Game ${game.id} EXCLUDED by week filter`)
-            return false
-          }
-          break
-        default:
-          console.log(`🗺️ DEBUG: Game ${game.id} - no date filter applied`)
-      }
-
-      // Skill level filter
-      if (debouncedFilters.skillLevel !== 'all' && game.skillLevel !== debouncedFilters.skillLevel) {
-        console.log(`🗺️ DEBUG: Game ${game.id} EXCLUDED by skill level filter`)
-        return false
-      }
-
-      console.log(`🗺️ DEBUG: Game ${game.id} INCLUDED in filtered results`)
-      return true
-    })
-
-    console.log('🗺️ DEBUG: Filtered games result:', filtered.length)
-    console.log('🗺️ DEBUG: Filtered game IDs:', filtered.map(g => g.id))
-    
-    // Limit to 50 games for performance (increased from 20)
-    const limited = filtered.slice(0, 50)
-    if (limited.length < filtered.length) {
+    // Limit to 50 games for performance
+    const limited = games.slice(0, 50)
+    if (limited.length < games.length) {
       console.log('🗺️ DEBUG: Limited to first 50 games for performance')
     }
     
+    console.log('🗺️ DEBUG: Final games to display:', limited.length)
     return limited
-  }, [games, debouncedFilters, latitude, longitude])
+  }, [games])
 
   const handleCenterOnUser = useCallback(() => {
     if (latitude && longitude && mapRef.current) {
@@ -243,27 +156,14 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     setPopupInfo(null)
   }, [])
 
-  // Calculate distance between two points in kilometers
-  function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371 // Earth's radius in kilometers
-    const dLat = (lat2 - lat1) * Math.PI / 180
-    const dLon = (lon2 - lon1) * Math.PI / 180
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-    return R * c
-  }
-
   // Simple marker grouping for nearby games
   const groupedGames = useMemo(() => {
-    console.log('🗺️ DEBUG: Grouping games for markers, input:', filteredGames.length)
+    console.log('🗺️ DEBUG: Grouping games for markers, input:', displayGames.length)
     
     const groups: { [key: string]: Game[] } = {}
     const threshold = 0.001 // ~100 meters
 
-    filteredGames.forEach(game => {
+    displayGames.forEach(game => {
       const key = `${Math.round(game.latitude / threshold)}_${Math.round(game.longitude / threshold)}`
       if (!groups[key]) {
         groups[key] = []
@@ -275,7 +175,7 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
     console.log('🗺️ DEBUG: Grouped into', result.length, 'marker groups')
     
     return result
-  }, [filteredGames])
+  }, [displayGames])
 
   // Show error state
   if (mapError) {
@@ -329,10 +229,10 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
         </div>
       )}
 
-      {/* Map Controls */}
+      {/* Map Controls - CRITICAL FIX: Pass props instead of internal state */}
       <MapControls
-        filters={filters}
-        onFiltersChange={setFilters}
+        filters={mapFilters}
+        onFiltersChange={onMapFiltersChange}
         onCenterOnUser={handleCenterOnUser}
         userLocation={latitude && longitude ? { latitude, longitude } : null}
         searchQuery={searchQuery}
@@ -422,9 +322,9 @@ export default function GameMap({ games, onGameClick, className = '' }: GameMapP
       {/* Results Counter */}
       <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-sm px-3 py-2 z-[1000]">
         <span className="text-sm text-gray-600">
-          {filteredGames.length} game{filteredGames.length !== 1 ? 's' : ''} found
-          {filteredGames.length === 50 && games.length > 50 && ' (showing first 50)'}
-          {filters.distance >= 999999 && (
+          {displayGames.length} game{displayGames.length !== 1 ? 's' : ''} found
+          {displayGames.length === 50 && games.length > 50 && ' (showing first 50)'}
+          {mapFilters.distance >= 999999 && (
             <span className="ml-2 text-blue-600 font-medium">• Worldwide</span>
           )}
         </span>

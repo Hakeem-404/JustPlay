@@ -6,11 +6,20 @@ export const chatService = {
     try {
       console.log('💬 Loading messages for game:', gameId, { limit, offset })
       
-      const { data, error } = await supabase.rpc('get_game_messages', {
-        game_id_param: gameId,
-        limit_param: limit,
-        offset_param: offset
-      })
+      // CRITICAL FIX: Use simple SELECT instead of RPC function
+      const { data, error } = await supabase
+        .from('game_messages')
+        .select(`
+          *,
+          profiles!user_id (
+            name,
+            avatar_url
+          )
+        `)
+        .eq('game_id', gameId)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+        .range(offset, offset + limit - 1)
 
       if (error) {
         console.error('❌ Error loading messages:', error)
@@ -19,11 +28,11 @@ export const chatService = {
 
       // Transform the data to match our ChatMessage interface
       const transformedData: ChatMessage[] = data?.map((msg: any) => ({
-        id: msg.message_id,
+        id: msg.id,
         gameId: msg.game_id,
         userId: msg.user_id,
-        userName: msg.user_name,
-        userAvatarUrl: msg.user_avatar_url,
+        userName: msg.profiles?.name || 'Unknown User',
+        userAvatarUrl: msg.profiles?.avatar_url || null,
         content: msg.content,
         messageType: msg.message_type,
         status: msg.status,
@@ -31,7 +40,7 @@ export const chatService = {
         editedAt: msg.edited_at,
         deletedAt: msg.deleted_at,
         createdAt: msg.created_at,
-        reactions: msg.reactions || []
+        reactions: []
       })).reverse() || [] // Reverse to show oldest first
 
       console.log('✅ Loaded messages:', transformedData.length)
@@ -46,41 +55,56 @@ export const chatService = {
     try {
       console.log('💬 Sending message to game:', gameId, messageData)
       
-      const { data, error } = await supabase.rpc('send_message', {
-        game_id_param: gameId,
-        content_param: messageData.content,
-        message_type_param: messageData.messageType || 'text',
-        reply_to_param: messageData.replyTo || null
-      })
+      // CRITICAL FIX: Use simple INSERT instead of RPC function
+      const { data, error } = await supabase
+        .from('game_messages')
+        .insert({
+          game_id: gameId,
+          user_id: (await supabase.auth.getUser()).data.user?.id,
+          content: messageData.content,
+          message_type: messageData.messageType || 'text',
+          reply_to: messageData.replyTo || null
+        })
+        .select(`
+          *,
+          profiles!user_id (
+            name,
+            avatar_url
+          )
+        `)
+        .single()
 
       if (error) {
         console.error('❌ Error sending message:', error)
         return { data: null, error }
       }
 
-      if (!data.success) {
-        console.error('❌ Send message failed:', data.error)
-        return { data: null, error: data.error }
-      }
-
-      console.log('✅ Message sent successfully:', data.message)
+      console.log('✅ Message sent successfully:', data)
       
       // Transform the response to match our ChatMessage interface
       const transformedMessage: ChatMessage = {
-        id: data.message.id,
-        gameId: data.message.game_id,
-        userId: data.message.user_id,
-        userName: data.message.user_name,
-        userAvatarUrl: data.message.user_avatar_url,
-        content: data.message.content,
-        messageType: data.message.message_type,
-        status: data.message.status,
-        replyTo: data.message.reply_to,
-        editedAt: data.message.edited_at,
-        deletedAt: data.message.deleted_at,
-        createdAt: data.message.created_at,
-        reactions: data.message.reactions || []
+        id: data.id,
+        gameId: data.game_id,
+        userId: data.user_id,
+        userName: data.profiles?.name || 'Unknown User',
+        userAvatarUrl: data.profiles?.avatar_url || null,
+        content: data.content,
+        messageType: data.message_type,
+        status: data.status,
+        replyTo: data.reply_to,
+        editedAt: data.edited_at,
+        deletedAt: data.deleted_at,
+        createdAt: data.created_at,
+        reactions: []
       }
+
+      // CRITICAL FIX: Use broadcast for real-time messaging
+      const channel = supabase.channel(`game_chat_${gameId}`)
+      await channel.send({
+        type: 'broadcast',
+        event: 'new_message',
+        payload: transformedMessage
+      })
 
       return { data: transformedMessage, error: null }
     } catch (err) {
@@ -93,9 +117,38 @@ export const chatService = {
     try {
       console.log('💬 Marking messages as read for game:', gameId)
       
-      const { error } = await supabase.rpc('mark_messages_as_read', {
-        game_id_param: gameId
-      })
+      const user = (await supabase.auth.getUser()).data.user
+      if (!user) {
+        return { error: 'User not authenticated' }
+      }
+
+      // Get all unread messages for this game
+      const { data: messages, error: fetchError } = await supabase
+        .from('game_messages')
+        .select('id')
+        .eq('game_id', gameId)
+        .neq('user_id', user.id) // Don't mark own messages
+
+      if (fetchError) {
+        console.error('❌ Error fetching messages to mark as read:', fetchError)
+        return { error: fetchError }
+      }
+
+      if (!messages || messages.length === 0) {
+        console.log('✅ No messages to mark as read')
+        return { error: null }
+      }
+
+      // Insert read status for all messages
+      const readStatuses = messages.map(msg => ({
+        message_id: msg.id,
+        user_id: user.id,
+        read_at: new Date().toISOString()
+      }))
+
+      const { error } = await supabase
+        .from('message_read_status')
+        .upsert(readStatuses, { onConflict: 'message_id,user_id' })
 
       if (error) {
         console.error('❌ Error marking messages as read:', error)
@@ -112,16 +165,28 @@ export const chatService = {
 
   async getUnreadCount(gameId: string): Promise<{ data: number | null; error: any }> {
     try {
-      const { data, error } = await supabase.rpc('get_unread_message_count', {
-        game_id_param: gameId
-      })
+      const user = (await supabase.auth.getUser()).data.user
+      if (!user) {
+        return { data: 0, error: null }
+      }
+
+      const { count, error } = await supabase
+        .from('game_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('game_id', gameId)
+        .neq('user_id', user.id) // Don't count own messages
+        .is('deleted_at', null)
+        .not('id', 'in', `(
+          SELECT message_id FROM message_read_status 
+          WHERE user_id = '${user.id}'
+        )`)
 
       if (error) {
         console.error('❌ Error getting unread count:', error)
         return { data: null, error }
       }
 
-      return { data: data || 0, error: null }
+      return { data: count || 0, error: null }
     } catch (err) {
       console.error('💥 Unexpected error getting unread count:', err)
       return { data: null, error: err }
@@ -180,98 +245,91 @@ export const chatService = {
     }
   },
 
-  // Enhanced real-time subscription for chat messages
+  // CRITICAL FIX: Use broadcast-based real-time messaging
   subscribeToGameChat(gameId: string, callback: (message: ChatMessage) => void) {
-    console.log('📡 Setting up chat subscription for game:', gameId)
+    console.log('📡 Setting up broadcast chat subscription for game:', gameId)
     
-    const subscription = supabase
-      .channel(`game_chat_${gameId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'game_messages',
-          filter: `game_id=eq.${gameId}`
-        },
-        async (payload) => {
-          console.log('🔔 New message received via real-time:', payload)
-          
-          try {
-            // Get the complete message data with user info
-            const { data: messageData, error } = await supabase
-              .from('game_messages')
-              .select(`
-                *,
-                profiles!user_id (
-                  name,
-                  avatar_url
-                )
-              `)
-              .eq('id', payload.new.id)
-              .single()
+    const channel = supabase.channel(`game_chat_${gameId}`)
+    
+    // Subscribe to broadcast messages
+    channel.on('broadcast', { event: 'new_message' }, (payload) => {
+      console.log('🔔 Received broadcast message:', payload)
+      callback(payload.payload)
+    })
 
-            if (error) {
-              console.error('❌ Error fetching complete message data:', error)
-              return
-            }
-
-            if (messageData) {
-              // Transform to ChatMessage format
-              const newMessage: ChatMessage = {
-                id: messageData.id,
-                gameId: messageData.game_id,
-                userId: messageData.user_id,
-                userName: messageData.profiles?.name || 'Unknown User',
-                userAvatarUrl: messageData.profiles?.avatar_url || null,
-                content: messageData.content,
-                messageType: messageData.message_type,
-                status: messageData.status,
-                replyTo: messageData.reply_to,
-                editedAt: messageData.edited_at,
-                deletedAt: messageData.deleted_at,
-                createdAt: messageData.created_at,
-                reactions: []
-              }
-
-              console.log('📨 Broadcasting new message to component:', newMessage)
-              callback(newMessage)
-            }
-          } catch (err) {
-            console.error('💥 Error processing real-time message:', err)
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'game_messages',
-          filter: `game_id=eq.${gameId}`
-        },
-        async (payload) => {
-          console.log('🔔 Message updated via real-time:', payload)
-          
-          // For updates (edits/deletes), we could reload the specific message
-          // For now, we'll just log it
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 Chat subscription status:', status)
+    // Also subscribe to database changes as fallback
+    channel.on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'game_messages',
+        filter: `game_id=eq.${gameId}`
+      },
+      async (payload) => {
+        console.log('🔔 New message received via postgres_changes:', payload)
         
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Successfully subscribed to chat for game:', gameId)
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Chat subscription error for game:', gameId)
-        } else if (status === 'TIMED_OUT') {
-          console.error('⏰ Chat subscription timed out for game:', gameId)
-        } else if (status === 'CLOSED') {
-          console.log('🔌 Chat subscription closed for game:', gameId)
-        }
-      })
+        try {
+          // Get the complete message data with user info
+          const { data: messageData, error } = await supabase
+            .from('game_messages')
+            .select(`
+              *,
+              profiles!user_id (
+                name,
+                avatar_url
+              )
+            `)
+            .eq('id', payload.new.id)
+            .single()
 
-    return subscription
+          if (error) {
+            console.error('❌ Error fetching complete message data:', error)
+            return
+          }
+
+          if (messageData) {
+            // Transform to ChatMessage format
+            const newMessage: ChatMessage = {
+              id: messageData.id,
+              gameId: messageData.game_id,
+              userId: messageData.user_id,
+              userName: messageData.profiles?.name || 'Unknown User',
+              userAvatarUrl: messageData.profiles?.avatar_url || null,
+              content: messageData.content,
+              messageType: messageData.message_type,
+              status: messageData.status,
+              replyTo: messageData.reply_to,
+              editedAt: messageData.edited_at,
+              deletedAt: messageData.deleted_at,
+              createdAt: messageData.created_at,
+              reactions: []
+            }
+
+            console.log('📨 Broadcasting new message to component:', newMessage)
+            callback(newMessage)
+          }
+        } catch (err) {
+          console.error('💥 Error processing real-time message:', err)
+        }
+      }
+    )
+
+    channel.subscribe((status) => {
+      console.log('📡 Chat subscription status:', status)
+      
+      if (status === 'SUBSCRIBED') {
+        console.log('✅ Successfully subscribed to chat for game:', gameId)
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error('❌ Chat subscription error for game:', gameId)
+      } else if (status === 'TIMED_OUT') {
+        console.error('⏰ Chat subscription timed out for game:', gameId)
+      } else if (status === 'CLOSED') {
+        console.log('🔌 Chat subscription closed for game:', gameId)
+      }
+    })
+
+    return channel
   },
 
   // Subscribe to typing indicators (future enhancement)
