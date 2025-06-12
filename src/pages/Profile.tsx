@@ -207,337 +207,350 @@ export default function Profile() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Profile Header */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8">
-        <div className="flex flex-col md:flex-row items-start md:items-center space-y-6 md:space-y-0 md:space-x-8">
-          {/* Avatar */}
-          <div className="flex-shrink-0">
-            <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center text-white text-3xl font-bold">
-              {profile.name.charAt(0).toUpperCase()}
-            </div>
-          </div>
-
-          {/* Profile Info */}
-          <div className="flex-1">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">{profile.name}</h1>
-                <div className="flex items-center text-gray-600 mb-2">
-                  <MapPin className="h-4 w-4 mr-1" />
-                  <span>{profile.location}</span>
-                </div>
-                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getSkillLevelColor(profile.skill_level)}`}>
-                  {getSkillLevelLabel(profile.skill_level)}
-                </span>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Profile Header - Fixed overflow issues */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sm:p-8 mb-8 overflow-hidden">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center space-y-6 lg:space-y-0 lg:space-x-8">
+            {/* Avatar */}
+            <div className="flex-shrink-0">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center text-white text-2xl sm:text-3xl font-bold">
+                {profile.name.charAt(0).toUpperCase()}
               </div>
-              <Link
-                to="/profile/edit"
-                className="mt-4 sm:mt-0 bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2"
-              >
-                <Edit3 className="h-4 w-4" />
-                <span>Edit Profile</span>
-              </Link>
             </div>
 
-            {profile.bio && (
-              <p className="text-gray-700 leading-relaxed">{profile.bio}</p>
-            )}
+            {/* Profile Info - Fixed text overflow */}
+            <div className="flex-1 min-w-0 w-full">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 space-y-4 sm:space-y-0">
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 truncate">
+                    {profile.name}
+                  </h1>
+                  <div className="flex items-center text-gray-600 mb-2">
+                    <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
+                    <span className="text-sm sm:text-base truncate">{profile.location}</span>
+                  </div>
+                  <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getSkillLevelColor(profile.skill_level)}`}>
+                    {getSkillLevelLabel(profile.skill_level)}
+                  </span>
+                </div>
+                <div className="flex-shrink-0">
+                  <Link
+                    to="/profile/edit"
+                    className="w-full sm:w-auto bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                    <span>Edit Profile</span>
+                  </Link>
+                </div>
+              </div>
+
+              {profile.bio && (
+                <div className="w-full">
+                  <p className="text-gray-700 leading-relaxed text-sm sm:text-base break-words">
+                    {profile.bio}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* Preferred Sports */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-              <Target className="h-5 w-5 mr-2 text-blue-600" />
-              Preferred Sports
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {profile.preferred_sports.map((sport) => (
-                <div
-                  key={sport}
-                  className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center"
-                >
-                  <div className="text-2xl mb-2">{SPORT_ICONS[sport] || '🏃'}</div>
-                  <div className="text-sm font-medium text-blue-700">{sport}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Recent Games - Enhanced with Interactive Elements */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-              <Calendar className="h-5 w-5 mr-2 text-green-600" />
-              Recent Games
-            </h2>
-            
-            {loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                <p className="text-gray-600 text-sm">Loading game history...</p>
-              </div>
-            ) : gameHistory.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Activity className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                <p>No games yet. Start by joining or creating a game!</p>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center mt-4">
-                  <Link
-                    to="/dashboard"
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    Find Games
-                  </Link>
-                  <Link
-                    to="/create-game"
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors"
-                  >
-                    Create Game
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {gameHistory.map((game) => (
+        {/* Main Content Grid - Improved responsive layout */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
+          {/* Left Column - Fixed overflow issues */}
+          <div className="xl:col-span-2 space-y-6 lg:space-y-8 min-w-0">
+            {/* Preferred Sports - Fixed grid overflow */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 overflow-hidden">
+              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                <Target className="h-5 w-5 mr-2 text-blue-600 flex-shrink-0" />
+                <span className="truncate">Preferred Sports</span>
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {profile.preferred_sports.map((sport) => (
                   <div
-                    key={`${game.id}-${game.type}`}
-                    className="group relative border border-gray-200 rounded-xl p-4 cursor-pointer transition-all duration-300 ease-in-out hover:shadow-md focus-within:shadow-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-opacity-50"
-                    style={{
-                      backgroundColor: 'rgba(0, 0, 0, 0)',
-                      transition: 'background-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.02)'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0)'
-                    }}
-                    onClick={() => handleGameClick(game)}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`View details for ${game.title || game.sport} game on ${formatDate(game.date)}`}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        handleGameClick(game)
-                      }
-                    }}
+                    key={sport}
+                    className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 text-center min-w-0"
                   >
-                    {/* Main Game Content */}
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex items-start space-x-4 mb-3 sm:mb-0">
-                        {/* Sport Icon */}
-                        <div className="flex-shrink-0 text-2xl" aria-hidden="true">
-                          {SPORT_ICONS[game.sport] || '🏃'}
-                        </div>
-                        
-                        {/* Game Details */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-gray-900 text-lg mb-1 truncate">
-                            {game.title || game.sport}
-                          </h3>
-                          
-                          <div className="flex items-center text-gray-600 mb-2">
-                            <MapPin className="h-4 w-4 mr-1 flex-shrink-0" aria-hidden="true" />
-                            <span className="text-sm truncate">{game.location}</span>
-                          </div>
-                          
-                          <div className="flex items-center text-gray-600 mb-2">
-                            <Clock className="h-4 w-4 mr-1 flex-shrink-0" aria-hidden="true" />
-                            <span className="text-sm">
-                              {formatDate(game.date)} at {game.time}
-                            </span>
-                          </div>
-                          
-                          {game.organizerName && game.type === 'joined' && (
-                            <div className="flex items-center text-gray-500">
-                              <User className="h-3 w-3 mr-1 flex-shrink-0" aria-hidden="true" />
-                              <span className="text-xs truncate">
-                                Organized by {game.organizerName}
-                              </span>
-                            </div>
-                          )}
-                          
-                          {game.players && (
-                            <div className="flex items-center text-gray-500 mt-1">
-                              <Users className="h-3 w-3 mr-1 flex-shrink-0" aria-hidden="true" />
-                              <span className="text-xs">{game.players} players</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Status Badges and Actions */}
-                      <div className="flex flex-col sm:items-end space-y-2">
-                        <div className="flex flex-wrap gap-2">
-                          <span 
-                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getTypeColor(game.type)}`}
-                            aria-label={`Game type: ${game.type}`}
-                          >
-                            {game.type === 'organized' ? 'Organized' : 'Joined'}
-                          </span>
-                          <span 
-                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getResultColor(game.result)}`}
-                            aria-label={`Game status: ${game.result}`}
-                          >
-                            {game.result.charAt(0).toUpperCase() + game.result.slice(1)}
-                          </span>
-                        </div>
-                        
-                        {/* View Details Button - Shows on Hover */}
-                        <button
-                          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-300 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center space-x-2"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleGameClick(game)
-                          }}
-                          disabled={gameLoading === game.id}
-                          aria-label={`View details for ${game.title || game.sport}`}
-                        >
-                          {gameLoading === game.id ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                              <span>Loading...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Eye className="h-4 w-4" aria-hidden="true" />
-                              <span>View Details</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
+                    <div className="text-xl sm:text-2xl mb-2">{SPORT_ICONS[sport] || '🏃'}</div>
+                    <div className="text-xs sm:text-sm font-medium text-blue-700 truncate">
+                      {sport}
                     </div>
-                    
-                    {/* Accessibility: Screen reader only content */}
-                    <span className="sr-only">
-                      {game.title || game.sport} game at {game.location} on {formatDate(game.date)} at {game.time}. 
-                      Status: {game.result}. Type: {game.type}. 
-                      {game.players && `Players: ${game.players}.`}
-                      {game.organizerName && game.type === 'joined' && ` Organized by ${game.organizerName}.`}
-                      Press Enter or Space to view details.
-                    </span>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
 
-        {/* Right Column - Stats */}
-        <div className="space-y-6">
-          {/* Stats Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-              <Trophy className="h-5 w-5 mr-2 text-yellow-600" />
-              Your Stats
-            </h2>
-            
-            {statsLoading ? (
-              <div className="text-center py-4">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                <p className="text-gray-600 text-sm">Loading stats...</p>
-              </div>
-            ) : userStats ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                  <div className="flex items-center space-x-2">
-                    <Users className="h-5 w-5 text-blue-600" />
-                    <span className="text-gray-700">Games Joined</span>
-                  </div>
-                  <span className="font-bold text-blue-600 text-lg">{userStats.gamesJoined}</span>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="h-5 w-5 text-green-600" />
-                    <span className="text-gray-700">Games Organized</span>
-                  </div>
-                  <span className="font-bold text-green-600 text-lg">{userStats.gamesOrganized}</span>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
-                  <div className="flex items-center space-x-2">
-                    <Award className="h-5 w-5 text-purple-600" />
-                    <span className="text-gray-700">Games Completed</span>
-                  </div>
-                  <span className="font-bold text-purple-600 text-lg">{userStats.gamesCompleted}</span>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
-                  <div className="flex items-center space-x-2">
-                    <TrendingUp className="h-5 w-5 text-yellow-600" />
-                    <span className="text-gray-700">Completion Rate</span>
-                  </div>
-                  <span className="font-bold text-yellow-600 text-lg">
-                    {userStats.completionRate}%
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-cyan-50 rounded-lg">
-                  <div className="flex items-center space-x-2">
-                    <Clock className="h-5 w-5 text-cyan-600" />
-                    <span className="text-gray-700">Upcoming Games</span>
-                  </div>
-                  <span className="font-bold text-cyan-600 text-lg">{userStats.upcomingGames}</span>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-4 text-gray-500">
-                <p>Unable to load stats</p>
-              </div>
-            )}
-          </div>
-
-          {/* Quick Actions */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Quick Actions</h2>
-            <div className="space-y-3">
-              <Link
-                to="/create-game"
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
-              >
-                <Calendar className="h-4 w-4" />
-                <span>Create New Game</span>
-              </Link>
+            {/* Recent Games - Fixed overflow and improved responsive design */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 overflow-hidden">
+              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                <Calendar className="h-5 w-5 mr-2 text-green-600 flex-shrink-0" />
+                <span className="truncate">Recent Games</span>
+              </h2>
               
-              <Link
-                to="/dashboard"
-                className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-2"
-              >
-                <Users className="h-4 w-4" />
-                <span>Find Games</span>
-              </Link>
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-gray-600 text-sm">Loading game history...</p>
+                </div>
+              ) : gameHistory.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Activity className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                  <p className="mb-4">No games yet. Start by joining or creating a game!</p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Link
+                      to="/dashboard"
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors text-center"
+                    >
+                      Find Games
+                    </Link>
+                    <Link
+                      to="/create-game"
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors text-center"
+                    >
+                      Create Game
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {gameHistory.map((game) => (
+                    <div
+                      key={`${game.id}-${game.type}`}
+                      className="group relative border border-gray-200 rounded-xl p-4 cursor-pointer transition-all duration-300 ease-in-out hover:shadow-md focus-within:shadow-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-opacity-50 overflow-hidden"
+                      style={{
+                        backgroundColor: 'rgba(0, 0, 0, 0)',
+                        transition: 'background-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.02)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0)'
+                      }}
+                      onClick={() => handleGameClick(game)}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`View details for ${game.title || game.sport} game on ${formatDate(game.date)}`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleGameClick(game)
+                        }
+                      }}
+                    >
+                      {/* Main Game Content - Fixed layout and overflow */}
+                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-3 lg:space-y-0 min-w-0">
+                        <div className="flex items-start space-x-3 sm:space-x-4 min-w-0 flex-1">
+                          {/* Sport Icon */}
+                          <div className="flex-shrink-0 text-xl sm:text-2xl" aria-hidden="true">
+                            {SPORT_ICONS[game.sport] || '🏃'}
+                          </div>
+                          
+                          {/* Game Details - Fixed text overflow */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-gray-900 text-base sm:text-lg mb-1 truncate">
+                              {game.title || game.sport}
+                            </h3>
+                            
+                            <div className="flex items-center text-gray-600 mb-2">
+                              <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1 flex-shrink-0" aria-hidden="true" />
+                              <span className="text-xs sm:text-sm truncate">{game.location}</span>
+                            </div>
+                            
+                            <div className="flex items-center text-gray-600 mb-2">
+                              <Clock className="h-3 w-3 sm:h-4 sm:w-4 mr-1 flex-shrink-0" aria-hidden="true" />
+                              <span className="text-xs sm:text-sm">
+                                {formatDate(game.date)} at {game.time}
+                              </span>
+                            </div>
+                            
+                            {game.organizerName && game.type === 'joined' && (
+                              <div className="flex items-center text-gray-500">
+                                <User className="h-3 w-3 mr-1 flex-shrink-0" aria-hidden="true" />
+                                <span className="text-xs truncate">
+                                  Organized by {game.organizerName}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {game.players && (
+                              <div className="flex items-center text-gray-500 mt-1">
+                                <Users className="h-3 w-3 mr-1 flex-shrink-0" aria-hidden="true" />
+                                <span className="text-xs">{game.players} players</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Status Badges and Actions - Fixed responsive layout */}
+                        <div className="flex flex-col sm:items-end space-y-2 flex-shrink-0">
+                          <div className="flex flex-wrap gap-2">
+                            <span 
+                              className={`inline-flex items-center px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium ${getTypeColor(game.type)}`}
+                              aria-label={`Game type: ${game.type}`}
+                            >
+                              {game.type === 'organized' ? 'Organized' : 'Joined'}
+                            </span>
+                            <span 
+                              className={`inline-flex items-center px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium ${getResultColor(game.result)}`}
+                              aria-label={`Game status: ${game.result}`}
+                            >
+                              {game.result.charAt(0).toUpperCase() + game.result.slice(1)}
+                            </span>
+                          </div>
+                          
+                          {/* View Details Button - Shows on Hover */}
+                          <button
+                            className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-300 bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center space-x-2 w-full sm:w-auto justify-center"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleGameClick(game)
+                            }}
+                            disabled={gameLoading === game.id}
+                            aria-label={`View details for ${game.title || game.sport}`}
+                          >
+                            {gameLoading === game.id ? (
+                              <>
+                                <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-white"></div>
+                                <span>Loading...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="h-3 w-3 sm:h-4 sm:w-4" aria-hidden="true" />
+                                <span>View Details</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Accessibility: Screen reader only content */}
+                      <span className="sr-only">
+                        {game.title || game.sport} game at {game.location} on {formatDate(game.date)} at {game.time}. 
+                        Status: {game.result}. Type: {game.type}. 
+                        {game.players && `Players: ${game.players}.`}
+                        {game.organizerName && game.type === 'joined' && ` Organized by ${game.organizerName}.`}
+                        Press Enter or Space to view details.
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Member Since */}
-          <div className="bg-gradient-to-br from-blue-50 to-green-50 rounded-2xl p-6 border border-gray-200">
-            <div className="text-center">
-              <Clock className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-              <h3 className="font-semibold text-gray-900 mb-1">Member Since</h3>
-              <p className="text-gray-600">
-                {new Date(profile.created_at).toLocaleDateString('en-US', {
-                  month: 'long',
-                  year: 'numeric'
-                })}
-              </p>
+          {/* Right Column - Stats - Fixed overflow and improved responsive design */}
+          <div className="space-y-6 min-w-0">
+            {/* Stats Card - Fixed overflow */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 overflow-hidden">
+              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                <Trophy className="h-5 w-5 mr-2 text-yellow-600 flex-shrink-0" />
+                <span className="truncate">Your Stats</span>
+              </h2>
+              
+              {statsLoading ? (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-gray-600 text-sm">Loading stats...</p>
+                </div>
+              ) : userStats ? (
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg min-w-0">
+                    <div className="flex items-center space-x-2 min-w-0 flex-1">
+                      <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 flex-shrink-0" />
+                      <span className="text-gray-700 text-sm sm:text-base truncate">Games Joined</span>
+                    </div>
+                    <span className="font-bold text-blue-600 text-lg flex-shrink-0">{userStats.gamesJoined}</span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg min-w-0">
+                    <div className="flex items-center space-x-2 min-w-0 flex-1">
+                      <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0" />
+                      <span className="text-gray-700 text-sm sm:text-base truncate">Games Organized</span>
+                    </div>
+                    <span className="font-bold text-green-600 text-lg flex-shrink-0">{userStats.gamesOrganized}</span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg min-w-0">
+                    <div className="flex items-center space-x-2 min-w-0 flex-1">
+                      <Award className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 flex-shrink-0" />
+                      <span className="text-gray-700 text-sm sm:text-base truncate">Games Completed</span>
+                    </div>
+                    <span className="font-bold text-purple-600 text-lg flex-shrink-0">{userStats.gamesCompleted}</span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg min-w-0">
+                    <div className="flex items-center space-x-2 min-w-0 flex-1">
+                      <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-600 flex-shrink-0" />
+                      <span className="text-gray-700 text-sm sm:text-base truncate">Completion Rate</span>
+                    </div>
+                    <span className="font-bold text-yellow-600 text-lg flex-shrink-0">
+                      {userStats.completionRate}%
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-cyan-50 rounded-lg min-w-0">
+                    <div className="flex items-center space-x-2 min-w-0 flex-1">
+                      <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-cyan-600 flex-shrink-0" />
+                      <span className="text-gray-700 text-sm sm:text-base truncate">Upcoming Games</span>
+                    </div>
+                    <span className="font-bold text-cyan-600 text-lg flex-shrink-0">{userStats.upcomingGames}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4 text-gray-500">
+                  <p>Unable to load stats</p>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Actions - Fixed responsive design */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 overflow-hidden">
+              <h2 className="text-xl font-bold text-gray-900 mb-4 truncate">Quick Actions</h2>
+              <div className="space-y-3">
+                <Link
+                  to="/create-game"
+                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                >
+                  <Calendar className="h-4 w-4 flex-shrink-0" />
+                  <span>Create New Game</span>
+                </Link>
+                
+                <Link
+                  to="/dashboard"
+                  className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-2"
+                >
+                  <Users className="h-4 w-4 flex-shrink-0" />
+                  <span>Find Games</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* Member Since - Fixed responsive design */}
+            <div className="bg-gradient-to-br from-blue-50 to-green-50 rounded-2xl p-6 border border-gray-200 overflow-hidden">
+              <div className="text-center">
+                <Clock className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                <h3 className="font-semibold text-gray-900 mb-1">Member Since</h3>
+                <p className="text-gray-600 text-sm sm:text-base">
+                  {new Date(profile.created_at).toLocaleDateString('en-US', {
+                    month: 'long',
+                    year: 'numeric'
+                  })}
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Game Details Modal */}
-      <GameDetailsModal
-        game={selectedGame}
-        isOpen={isModalOpen}
-        onClose={handleModalClose}
-        onGameUpdate={handleGameUpdate}
-      />
+        {/* Game Details Modal */}
+        <GameDetailsModal
+          game={selectedGame}
+          isOpen={isModalOpen}
+          onClose={handleModalClose}
+          onGameUpdate={handleGameUpdate}
+        />
+      </div>
     </div>
   )
 }
