@@ -170,35 +170,16 @@ export const chatService = {
         return { data: 0, error: null }
       }
 
-      // CRITICAL FIX: Split the query into two separate calls
-      // First, get all message IDs that the user has read
-      const { data: readMessages, error: readError } = await supabase
-        .from('message_read_status')
-        .select('message_id')
-        .eq('user_id', user.id)
-
-      if (readError) {
-        console.error('❌ Error getting read messages:', readError)
-        return { data: null, error: readError }
-      }
-
-      // Extract the message IDs into an array
-      const readMessageIds = readMessages?.map(r => r.message_id) || []
-
-      // Now get the count of unread messages
-      let query = supabase
+      const { count, error } = await supabase
         .from('game_messages')
         .select('*', { count: 'exact', head: true })
         .eq('game_id', gameId)
         .neq('user_id', user.id) // Don't count own messages
         .is('deleted_at', null)
-
-      // FIXED: Pass the array directly instead of constructing a string
-      if (readMessageIds.length > 0) {
-        query = query.not('id', 'in', readMessageIds)
-      }
-
-      const { count, error } = await query
+        .not('id', 'in', `(
+          SELECT message_id FROM message_read_status 
+          WHERE user_id = '${user.id}'
+        )`)
 
       if (error) {
         console.error('❌ Error getting unread count:', error)
