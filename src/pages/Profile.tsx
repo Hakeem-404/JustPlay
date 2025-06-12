@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { 
   User, 
@@ -9,38 +9,14 @@ import {
   Edit3,
   Target,
   Users,
-  Clock
+  Clock,
+  TrendingUp,
+  Award,
+  Activity
 } from 'lucide-react'
 import { useProfile } from '../contexts/ProfileContext'
 import { useAuth } from '../contexts/AuthContext'
-
-// Placeholder data for games history
-const RECENT_GAMES = [
-  {
-    id: 1,
-    sport: 'Basketball',
-    location: 'Central Park Courts',
-    date: '2025-01-15',
-    type: 'joined',
-    result: 'completed'
-  },
-  {
-    id: 2,
-    sport: 'Soccer',
-    location: 'Riverside Field',
-    date: '2025-01-12',
-    type: 'organized',
-    result: 'completed'
-  },
-  {
-    id: 3,
-    sport: 'Tennis',
-    location: 'Oak Hill Tennis Club',
-    date: '2025-01-10',
-    type: 'joined',
-    result: 'completed'
-  }
-]
+import { profileService } from '../lib/profileService'
 
 const SPORT_ICONS: { [key: string]: string } = {
   'Basketball': '🏀',
@@ -55,9 +31,70 @@ const SPORT_ICONS: { [key: string]: string } = {
   'Running': '🏃'
 }
 
+interface UserStats {
+  gamesOrganized: number
+  gamesJoined: number
+  gamesCompleted: number
+  gamesCancelled: number
+  upcomingGames: number
+  pastGames: number
+  completionRate: number
+}
+
+interface GameHistory {
+  id: string
+  sport: string
+  title?: string
+  location: string
+  date: string
+  time: string
+  type: 'organized' | 'joined'
+  result: 'completed' | 'cancelled' | 'upcoming'
+  players?: string
+  organizerName?: string
+  participationStatus?: string
+}
+
 export default function Profile() {
   const { profile } = useProfile()
   const { user } = useAuth()
+  const [userStats, setUserStats] = useState<UserStats | null>(null)
+  const [gameHistory, setGameHistory] = useState<GameHistory[]>([])
+  const [loading, setLoading] = useState(true)
+  const [statsLoading, setStatsLoading] = useState(true)
+
+  useEffect(() => {
+    if (user) {
+      loadUserData()
+    }
+  }, [user])
+
+  const loadUserData = async () => {
+    if (!user) return
+
+    setLoading(true)
+    setStatsLoading(true)
+
+    try {
+      console.log('📊 Loading user profile data for:', user.id)
+
+      // Load user stats and game history in parallel
+      const [stats, history] = await Promise.all([
+        profileService.getUserStats(user.id),
+        profileService.getUserGameHistory(user.id)
+      ])
+
+      setUserStats(stats)
+      setGameHistory(history)
+
+      console.log('✅ Loaded user data:', { stats, historyCount: history.length })
+    } catch (err) {
+      console.error('💥 Error loading user data:', err)
+    } finally {
+      setLoading(false)
+      setStatsLoading(false)
+    }
+  }
 
   if (!profile || !user) {
     return (
@@ -81,6 +118,46 @@ export default function Profile() {
 
   const getSkillLevelLabel = (level: string) => {
     return level.charAt(0).toUpperCase() + level.slice(1)
+  }
+
+  const formatDate = (date: string) => {
+    try {
+      const gameDate = new Date(date)
+      const today = new Date()
+      const tomorrow = new Date(today)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+
+      if (gameDate.toDateString() === today.toDateString()) {
+        return 'Today'
+      } else if (gameDate.toDateString() === tomorrow.toDateString()) {
+        return 'Tomorrow'
+      } else {
+        return gameDate.toLocaleDateString('en-US', { 
+          weekday: 'short', 
+          month: 'short', 
+          day: 'numeric' 
+        })
+      }
+    } catch (error) {
+      return 'Invalid Date'
+    }
+  }
+
+  const getResultColor = (result: string) => {
+    switch (result) {
+      case 'completed': return 'bg-green-100 text-green-700'
+      case 'cancelled': return 'bg-red-100 text-red-700'
+      case 'upcoming': return 'bg-blue-100 text-blue-700'
+      default: return 'bg-gray-100 text-gray-700'
+    }
+  }
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'organized': return 'bg-purple-100 text-purple-700'
+      case 'joined': return 'bg-green-100 text-green-700'
+      default: return 'bg-gray-100 text-gray-700'
+    }
   }
 
   return (
@@ -152,37 +229,77 @@ export default function Profile() {
               <Calendar className="h-5 w-5 mr-2 text-green-600" />
               Recent Games
             </h2>
-            <div className="space-y-4">
-              {RECENT_GAMES.map((game) => (
-                <div
-                  key={game.id}
-                  className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="text-xl">{SPORT_ICONS[game.sport] || '🏃'}</div>
-                      <div>
-                        <h3 className="font-medium text-gray-900">{game.sport}</h3>
-                        <p className="text-sm text-gray-600 flex items-center">
-                          <MapPin className="h-3 w-3 mr-1" />
-                          {game.location}
+            
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                <p className="text-gray-600 text-sm">Loading game history...</p>
+              </div>
+            ) : gameHistory.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Activity className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                <p>No games yet. Start by joining or creating a game!</p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center mt-4">
+                  <Link
+                    to="/dashboard"
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                  >
+                    Find Games
+                  </Link>
+                  <Link
+                    to="/create-game"
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors"
+                  >
+                    Create Game
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {gameHistory.map((game) => (
+                  <div
+                    key={`${game.id}-${game.type}`}
+                    className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="text-xl">{SPORT_ICONS[game.sport] || '🏃'}</div>
+                        <div>
+                          <h3 className="font-medium text-gray-900">
+                            {game.title || game.sport}
+                          </h3>
+                          <p className="text-sm text-gray-600 flex items-center">
+                            <MapPin className="h-3 w-3 mr-1" />
+                            {game.location}
+                          </p>
+                          {game.organizerName && game.type === 'joined' && (
+                            <p className="text-xs text-gray-500">
+                              Organized by {game.organizerName}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-600 mb-1">
+                          {formatDate(game.date)} at {game.time}
                         </p>
+                        <div className="flex flex-col space-y-1">
+                          <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getTypeColor(game.type)}`}>
+                            {game.type === 'organized' ? 'Organized' : 'Joined'}
+                          </span>
+                          <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getResultColor(game.result)}`}>
+                            {game.result.charAt(0).toUpperCase() + game.result.slice(1)}
+                          </span>
+                        </div>
+                        {game.players && (
+                          <p className="text-xs text-gray-500 mt-1">{game.players} players</p>
+                        )}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600">{new Date(game.date).toLocaleDateString()}</p>
-                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                        game.type === 'organized' 
-                          ? 'bg-blue-100 text-blue-700' 
-                          : 'bg-green-100 text-green-700'
-                      }`}>
-                        {game.type === 'organized' ? 'Organized' : 'Joined'}
-                      </span>
-                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -194,33 +311,61 @@ export default function Profile() {
               <Trophy className="h-5 w-5 mr-2 text-yellow-600" />
               Your Stats
             </h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <Users className="h-5 w-5 text-blue-600" />
-                  <span className="text-gray-700">Games Played</span>
-                </div>
-                <span className="font-bold text-blue-600 text-lg">{profile.games_played}</span>
+            
+            {statsLoading ? (
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                <p className="text-gray-600 text-sm">Loading stats...</p>
               </div>
-              
-              <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-5 w-5 text-green-600" />
-                  <span className="text-gray-700">Games Organized</span>
+            ) : userStats ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <Users className="h-5 w-5 text-blue-600" />
+                    <span className="text-gray-700">Games Joined</span>
+                  </div>
+                  <span className="font-bold text-blue-600 text-lg">{userStats.gamesJoined}</span>
                 </div>
-                <span className="font-bold text-green-600 text-lg">{profile.games_organized}</span>
-              </div>
-              
-              <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <Star className="h-5 w-5 text-yellow-600" />
-                  <span className="text-gray-700">Average Rating</span>
+                
+                <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <Calendar className="h-5 w-5 text-green-600" />
+                    <span className="text-gray-700">Games Organized</span>
+                  </div>
+                  <span className="font-bold text-green-600 text-lg">{userStats.gamesOrganized}</span>
                 </div>
-                <span className="font-bold text-yellow-600 text-lg">
-                  {profile.average_rating.toFixed(1)}
-                </span>
+                
+                <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <Award className="h-5 w-5 text-purple-600" />
+                    <span className="text-gray-700">Games Completed</span>
+                  </div>
+                  <span className="font-bold text-purple-600 text-lg">{userStats.gamesCompleted}</span>
+                </div>
+                
+                <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <TrendingUp className="h-5 w-5 text-yellow-600" />
+                    <span className="text-gray-700">Completion Rate</span>
+                  </div>
+                  <span className="font-bold text-yellow-600 text-lg">
+                    {userStats.completionRate}%
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-cyan-50 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <Clock className="h-5 w-5 text-cyan-600" />
+                    <span className="text-gray-700">Upcoming Games</span>
+                  </div>
+                  <span className="font-bold text-cyan-600 text-lg">{userStats.upcomingGames}</span>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="text-center py-4 text-gray-500">
+                <p>Unable to load stats</p>
+              </div>
+            )}
           </div>
 
           {/* Quick Actions */}

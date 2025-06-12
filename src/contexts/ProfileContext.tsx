@@ -38,10 +38,19 @@ export function ProfileProvider({ children }: ProfileProviderProps) {
 
     setLoading(true)
     try {
-      const profileData = await profileService.getProfile(user.id)
+      console.log('🔄 Refreshing profile with real stats for user:', user.id)
+      
+      // Use the enhanced profile service that includes real stats
+      const profileData = await profileService.getProfileWithStats(user.id)
       setProfile(profileData)
+      
+      console.log('✅ Profile refreshed with real data:', profileData ? {
+        name: profileData.name,
+        games_organized: profileData.games_organized,
+        games_played: profileData.games_played
+      } : 'No profile found')
     } catch (error) {
-      console.error('Error loading profile:', error)
+      console.error('❌ Error loading profile:', error)
       setProfile(null)
     } finally {
       setLoading(false)

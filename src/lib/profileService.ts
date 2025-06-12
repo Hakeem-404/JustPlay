@@ -17,6 +17,242 @@ export const profileService = {
     return data
   },
 
+  async getProfileWithStats(userId: string): Promise<Profile | null> {
+    try {
+      console.log('📊 Loading profile with real stats for user:', userId)
+      
+      // Get base profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+
+      if (profileError) {
+        console.error('❌ Error fetching profile:', profileError)
+        return null
+      }
+
+      // Get games organized count
+      const { count: organizedCount, error: organizedError } = await supabase
+        .from('games')
+        .select('*', { count: 'exact', head: true })
+        .eq('organizer_id', userId)
+
+      if (organizedError) {
+        console.error('❌ Error fetching organized games count:', organizedError)
+      }
+
+      // Get games participated count
+      const { count: participatedCount, error: participatedError } = await supabase
+        .from('game_participants')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('status', 'joined')
+
+      if (participatedError) {
+        console.error('❌ Error fetching participated games count:', participatedError)
+      }
+
+      // Update profile with real stats
+      const updatedProfile = {
+        ...profile,
+        games_organized: organizedCount || 0,
+        games_played: participatedCount || 0
+      }
+
+      console.log('✅ Profile with real stats:', {
+        name: updatedProfile.name,
+        games_organized: updatedProfile.games_organized,
+        games_played: updatedProfile.games_played
+      })
+
+      return updatedProfile
+    } catch (err) {
+      console.error('💥 Error loading profile with stats:', err)
+      return null
+    }
+  },
+
+  async getUserGameHistory(userId: string) {
+    try {
+      console.log('📊 Loading user game history for:', userId)
+
+      // Get organized games
+      const { data: organizedGames, error: organizedError } = await supabase
+        .from('games')
+        .select(`
+          id,
+          sport,
+          title,
+          location,
+          date,
+          time,
+          status,
+          current_players,
+          max_players,
+          created_at
+        `)
+        .eq('organizer_id', userId)
+        .order('date', { ascending: false })
+        .limit(10)
+
+      if (organizedError) {
+        console.error('❌ Error fetching organized games:', organizedError)
+      }
+
+      // Get participated games
+      const { data: participatedGames, error: participatedError } = await supabase
+        .from('game_participants')
+        .select(`
+          id,
+          status,
+          joined_at,
+          games!inner (
+            id,
+            sport,
+            title,
+            location,
+            date,
+            time,
+            status,
+            current_players,
+            max_players,
+            organizer_id,
+            profiles!organizer_id (name)
+          )
+        `)
+        .eq('user_id', userId)
+        .in('status', ['joined', 'left'])
+        .order('joined_at', { ascending: false })
+        .limit(10)
+
+      if (participatedError) {
+        console.error('❌ Error fetching participated games:', participatedError)
+      }
+
+      // Transform and combine the data
+      const organizedHistory = (organizedGames || []).map(game => ({
+        id: game.id,
+        sport: game.sport,
+        title: game.title,
+        location: game.location,
+        date: game.date,
+        time: game.time,
+        status: game.status,
+        type: 'organized' as const,
+        result: game.status === 'completed' ? 'completed' : 
+                game.status === 'cancelled' ? 'cancelled' : 'upcoming',
+        players: `${game.current_players}/${game.max_players}`,
+        gameDate: new Date(game.date)
+      }))
+
+      const participatedHistory = (participatedGames || []).map(participation => ({
+        id: participation.games.id,
+        sport: participation.games.sport,
+        title: participation.games.title,
+        location: participation.games.location,
+        date: participation.games.date,
+        time: participation.games.time,
+        status: participation.games.status,
+        type: 'joined' as const,
+        result: participation.games.status === 'completed' ? 'completed' : 
+                participation.games.status === 'cancelled' ? 'cancelled' : 'upcoming',
+        players: `${participation.games.current_players}/${participation.games.max_players}`,
+        organizerName: participation.games.profiles?.name || 'Unknown',
+        participationStatus: participation.status,
+        gameDate: new Date(participation.games.date)
+      }))
+
+      // Combine and sort by date
+      const allGames = [...organizedHistory, ...participatedHistory]
+        .sort((a, b) => b.gameDate.getTime() - a.gameDate.getTime())
+        .slice(0, 10)
+
+      console.log('✅ Loaded game history:', allGames.length, 'games')
+      return allGames
+    } catch (err) {
+      console.error('💥 Error loading game history:', err)
+      return []
+    }
+  },
+
+  async getUserStats(userId: string) {
+    try {
+      console.log('📊 Calculating user stats for:', userId)
+
+      // Get organized games stats
+      const { data: organizedStats, error: organizedError } = await supabase
+        .from('games')
+        .select('status')
+        .eq('organizer_id', userId)
+
+      if (organizedError) {
+        console.error('❌ Error fetching organized stats:', organizedError)
+      }
+
+      // Get participated games stats
+      const { data: participatedStats, error: participatedError } = await supabase
+        .from('game_participants')
+        .select(`
+          status,
+          games!inner (
+            status,
+            date
+          )
+        `)
+        .eq('user_id', userId)
+
+      if (participatedError) {
+        console.error('❌ Error fetching participated stats:', participatedError)
+      }
+
+      // Calculate stats
+      const organized = organizedStats || []
+      const participated = participatedStats || []
+
+      const stats = {
+        gamesOrganized: organized.length,
+        gamesJoined: participated.filter(p => p.status === 'joined').length,
+        gamesCompleted: participated.filter(p => 
+          p.status === 'joined' && p.games.status === 'completed'
+        ).length,
+        gamesCancelled: participated.filter(p => 
+          p.games.status === 'cancelled'
+        ).length,
+        upcomingGames: participated.filter(p => 
+          p.status === 'joined' && 
+          p.games.status === 'active' && 
+          new Date(p.games.date) >= new Date()
+        ).length,
+        pastGames: participated.filter(p => 
+          p.status === 'joined' && 
+          new Date(p.games.date) < new Date()
+        ).length,
+        completionRate: 0
+      }
+
+      // Calculate completion rate
+      if (stats.gamesJoined > 0) {
+        stats.completionRate = Math.round((stats.gamesCompleted / stats.gamesJoined) * 100)
+      }
+
+      console.log('✅ Calculated user stats:', stats)
+      return stats
+    } catch (err) {
+      console.error('💥 Error calculating user stats:', err)
+      return {
+        gamesOrganized: 0,
+        gamesJoined: 0,
+        gamesCompleted: 0,
+        gamesCancelled: 0,
+        upcomingGames: 0,
+        pastGames: 0,
+        completionRate: 0
+      }
+    }
+  },
+
   async createProfile(userId: string, email: string, profileData: ProfileFormData): Promise<{ error: any }> {
     const { error } = await supabase
       .from('profiles')
