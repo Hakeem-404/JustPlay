@@ -257,9 +257,9 @@ export const chatService = {
     }
   },
 
-  // Enhanced real-time subscription for chat messages
+  // CRITICAL FIX: Enhanced real-time subscription using postgres_changes
   subscribeToGameChat(gameId: string, callback: (message: ChatMessage) => void) {
-    console.log('📡 Setting up chat subscription for game:', gameId)
+    console.log('📡 Setting up postgres_changes subscription for game:', gameId)
     
     const subscription = supabase
       .channel(`game_chat_${gameId}`)
@@ -272,7 +272,7 @@ export const chatService = {
           filter: `game_id=eq.${gameId}`
         },
         async (payload) => {
-          console.log('🔔 New message received via real-time:', payload)
+          console.log('🔔 New message received via postgres_changes:', payload)
           
           try {
             // Get the complete message data with user info
@@ -328,7 +328,7 @@ export const chatService = {
           filter: `game_id=eq.${gameId}`
         },
         async (payload) => {
-          console.log('🔔 Message updated via real-time:', payload)
+          console.log('🔔 Message updated via postgres_changes:', payload)
           
           // For updates (edits/deletes), we could reload the specific message
           // For now, we'll just log it
