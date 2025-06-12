@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Play, Menu, X, User, LogOut, Settings } from 'lucide-react'
+import { Play, Menu, X, User, LogOut, Settings, Users, MessageCircle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from '../contexts/ProfileContext'
 
@@ -101,6 +101,28 @@ export default function Layout({ children }: LayoutProps) {
                     >
                       Create Game
                     </Link>
+                    <Link
+                      to="/friends"
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        isActive('/friends') 
+                          ? 'text-blue-600 bg-blue-50' 
+                          : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Users className="h-4 w-4 inline mr-1" />
+                      Friends
+                    </Link>
+                    <Link
+                      to="/messages"
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        isActive('/messages') 
+                          ? 'text-blue-600 bg-blue-50' 
+                          : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <MessageCircle className="h-4 w-4 inline mr-1" />
+                      Messages
+                    </Link>
                   </>
                 )}
 
@@ -139,6 +161,22 @@ export default function Layout({ children }: LayoutProps) {
                         >
                           <Settings className="h-4 w-4" />
                           <span>Edit Profile</span>
+                        </Link>
+                        <Link
+                          to="/friends"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                        >
+                          <Users className="h-4 w-4" />
+                          <span>Friends</span>
+                        </Link>
+                        <Link
+                          to="/messages"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                          <span>Messages</span>
                         </Link>
                         <button
                           onClick={handleSignOut}
@@ -212,6 +250,28 @@ export default function Layout({ children }: LayoutProps) {
                       onClick={() => setIsMenuOpen(false)}
                     >
                       Create Game
+                    </Link>
+                    <Link
+                      to="/friends"
+                      className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                        isActive('/friends') 
+                          ? 'text-blue-600 bg-blue-50' 
+                          : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                      }`}
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Friends
+                    </Link>
+                    <Link
+                      to="/messages"
+                      className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                        isActive('/messages') 
+                          ? 'text-blue-600 bg-blue-50' 
+                          : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                      }`}
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Messages
                     </Link>
                     
                     {/* Mobile User Info */}

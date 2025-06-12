@@ -12,6 +12,9 @@ import CreateGame from './pages/CreateGame'
 import ProfileSetup from './pages/ProfileSetup'
 import Profile from './pages/Profile'
 import ProfileEdit from './pages/ProfileEdit'
+import UserProfile from './pages/UserProfile'
+import Friends from './pages/Friends'
+import Messages from './pages/Messages'
 
 function App() {
   return (
@@ -30,7 +33,7 @@ function App() {
               element={
                 <Layout>
                   <Routes>
-                    <Route path="/\" element={<Landing />} />
+                    <Route path="/" element={<Landing />} />
                     <Route 
                       path="/dashboard" 
                       element={
@@ -67,6 +70,36 @@ function App() {
                         <ProtectedRoute>
                           <ProfileSetupGuard>
                             <ProfileEdit />
+                          </ProfileSetupGuard>
+                        </ProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/profile/:userId" 
+                      element={
+                        <ProtectedRoute>
+                          <ProfileSetupGuard>
+                            <UserProfile />
+                          </ProfileSetupGuard>
+                        </ProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/friends" 
+                      element={
+                        <ProtectedRoute>
+                          <ProfileSetupGuard>
+                            <Friends />
+                          </ProfileSetupGuard>
+                        </ProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/messages" 
+                      element={
+                        <ProtectedRoute>
+                          <ProfileSetupGuard>
+                            <Messages />
                           </ProfileSetupGuard>
                         </ProtectedRoute>
                       } 

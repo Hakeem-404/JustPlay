@@ -25,6 +25,7 @@ import { gameParticipantService } from '../lib/gameParticipantService'
 import { gameService } from '../lib/gameService'
 import { chatService } from '../lib/chatService'
 import GameChat from './chat/GameChat'
+import { Link } from 'react-router-dom'
 
 interface GameDetailsModalProps {
   game: Game | null
@@ -589,7 +590,13 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                       <User className="h-5 w-5 text-purple-600" />
                       <div>
                         <p className="font-medium text-gray-900">Organizer</p>
-                        <p className="text-gray-600">{displayGame.organizerName}</p>
+                        <Link
+                          to={`/profile/${displayGame.organizerId}`}
+                          className="text-blue-600 hover:text-blue-700 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {displayGame.organizerName}
+                        </Link>
                       </div>
                     </div>
                   </div>
@@ -692,7 +699,13 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center space-x-2">
-                                    <p className="font-medium text-gray-900 truncate">{participant.name}</p>
+                                    <Link
+                                      to={`/profile/${participant.user_id}`}
+                                      className="font-medium text-gray-900 truncate hover:text-blue-600 hover:underline"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {participant.name}
+                                    </Link>
                                     {participant.user_id === displayGame.organizerId && (
                                       <Crown className="h-3 w-3 text-yellow-500" title="Organizer" />
                                     )}
@@ -721,7 +734,13 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                                   {participant.name.charAt(0).toUpperCase()}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-gray-900 truncate">{participant.name}</p>
+                                  <Link
+                                    to={`/profile/${participant.user_id}`}
+                                    className="font-medium text-gray-900 truncate hover:text-blue-600 hover:underline block"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {participant.name}
+                                  </Link>
                                   <div className="flex items-center space-x-2 text-sm text-gray-600">
                                     <Star className="h-3 w-3 text-yellow-500" />
                                     <span>{participant.average_rating.toFixed(1)}</span>
