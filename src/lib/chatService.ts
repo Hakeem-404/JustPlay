@@ -193,9 +193,9 @@ export const chatService = {
         .neq('user_id', user.id) // Don't count own messages
         .is('deleted_at', null)
 
-      // Only add the 'not in' filter if there are read messages
+      // FIXED: Pass the array directly instead of constructing a string
       if (readMessageIds.length > 0) {
-        query = query.not('id', 'in', `(${readMessageIds.map(id => `'${id}'`).join(',')})`)
+        query = query.not('id', 'in', readMessageIds)
       }
 
       const { count, error } = await query
