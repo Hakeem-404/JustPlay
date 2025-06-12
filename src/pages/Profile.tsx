@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { 
   User, 
   MapPin, 
@@ -12,11 +12,16 @@ import {
   Clock,
   TrendingUp,
   Award,
-  Activity
+  Activity,
+  ExternalLink,
+  Eye
 } from 'lucide-react'
 import { useProfile } from '../contexts/ProfileContext'
 import { useAuth } from '../contexts/AuthContext'
 import { profileService } from '../lib/profileService'
+import GameDetailsModal from '../components/GameDetailsModal'
+import { gameService } from '../lib/gameService'
+import { Game } from '../types/game'
 
 const SPORT_ICONS: { [key: string]: string } = {
   'Basketball': '🏀',
@@ -58,10 +63,16 @@ interface GameHistory {
 export default function Profile() {
   const { profile } = useProfile()
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [userStats, setUserStats] = useState<UserStats | null>(null)
   const [gameHistory, setGameHistory] = useState<GameHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [statsLoading, setStatsLoading] = useState(true)
+  
+  // Game details modal state
+  const [selectedGame, setSelectedGame] = useState<Game | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [gameLoading, setGameLoading] = useState<string | null>(null)
 
   useEffect(() => {
     if (user) {
@@ -94,6 +105,41 @@ export default function Profile() {
       setLoading(false)
       setStatsLoading(false)
     }
+  }
+
+  const handleGameClick = async (gameHistoryItem: GameHistory) => {
+    setGameLoading(gameHistoryItem.id)
+    
+    try {
+      // Fetch full game details
+      const { data: gameData, error } = await gameService.getGameById(gameHistoryItem.id)
+      
+      if (error || !gameData) {
+        console.error('Error loading game details:', error)
+        // Fallback: navigate to dashboard if game details can't be loaded
+        navigate('/dashboard')
+        return
+      }
+
+      setSelectedGame(gameData)
+      setIsModalOpen(true)
+    } catch (err) {
+      console.error('Error loading game details:', err)
+      navigate('/dashboard')
+    } finally {
+      setGameLoading(null)
+    }
+  }
+
+  const handleModalClose = () => {
+    setIsModalOpen(false)
+    setSelectedGame(null)
+  }
+
+  const handleGameUpdate = (updatedGame: Game) => {
+    setSelectedGame(updatedGame)
+    // Optionally refresh the game history to reflect changes
+    loadUserData()
   }
 
   if (!profile || !user) {
@@ -223,7 +269,7 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Recent Games */}
+          {/* Recent Games - Enhanced with Interactive Elements */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
               <Calendar className="h-5 w-5 mr-2 text-green-600" />
@@ -255,47 +301,126 @@ export default function Profile() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {gameHistory.map((game) => (
                   <div
                     key={`${game.id}-${game.type}`}
-                    className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                    className="group relative border border-gray-200 rounded-xl p-4 cursor-pointer transition-all duration-300 ease-in-out hover:shadow-md focus-within:shadow-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-opacity-50"
+                    style={{
+                      backgroundColor: 'rgba(0, 0, 0, 0)',
+                      transition: 'background-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.02)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0)'
+                    }}
+                    onClick={() => handleGameClick(game)}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`View details for ${game.title || game.sport} game on ${formatDate(game.date)}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        handleGameClick(game)
+                      }
+                    }}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="text-xl">{SPORT_ICONS[game.sport] || '🏃'}</div>
-                        <div>
-                          <h3 className="font-medium text-gray-900">
+                    {/* Main Game Content */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start space-x-4 mb-3 sm:mb-0">
+                        {/* Sport Icon */}
+                        <div className="flex-shrink-0 text-2xl" aria-hidden="true">
+                          {SPORT_ICONS[game.sport] || '🏃'}
+                        </div>
+                        
+                        {/* Game Details */}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 text-lg mb-1 truncate">
                             {game.title || game.sport}
                           </h3>
-                          <p className="text-sm text-gray-600 flex items-center">
-                            <MapPin className="h-3 w-3 mr-1" />
-                            {game.location}
-                          </p>
+                          
+                          <div className="flex items-center text-gray-600 mb-2">
+                            <MapPin className="h-4 w-4 mr-1 flex-shrink-0" aria-hidden="true" />
+                            <span className="text-sm truncate">{game.location}</span>
+                          </div>
+                          
+                          <div className="flex items-center text-gray-600 mb-2">
+                            <Clock className="h-4 w-4 mr-1 flex-shrink-0" aria-hidden="true" />
+                            <span className="text-sm">
+                              {formatDate(game.date)} at {game.time}
+                            </span>
+                          </div>
+                          
                           {game.organizerName && game.type === 'joined' && (
-                            <p className="text-xs text-gray-500">
-                              Organized by {game.organizerName}
-                            </p>
+                            <div className="flex items-center text-gray-500">
+                              <User className="h-3 w-3 mr-1 flex-shrink-0" aria-hidden="true" />
+                              <span className="text-xs truncate">
+                                Organized by {game.organizerName}
+                              </span>
+                            </div>
+                          )}
+                          
+                          {game.players && (
+                            <div className="flex items-center text-gray-500 mt-1">
+                              <Users className="h-3 w-3 mr-1 flex-shrink-0" aria-hidden="true" />
+                              <span className="text-xs">{game.players} players</span>
+                            </div>
                           )}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-600 mb-1">
-                          {formatDate(game.date)} at {game.time}
-                        </p>
-                        <div className="flex flex-col space-y-1">
-                          <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getTypeColor(game.type)}`}>
+                      
+                      {/* Status Badges and Actions */}
+                      <div className="flex flex-col sm:items-end space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          <span 
+                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getTypeColor(game.type)}`}
+                            aria-label={`Game type: ${game.type}`}
+                          >
                             {game.type === 'organized' ? 'Organized' : 'Joined'}
                           </span>
-                          <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getResultColor(game.result)}`}>
+                          <span 
+                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getResultColor(game.result)}`}
+                            aria-label={`Game status: ${game.result}`}
+                          >
                             {game.result.charAt(0).toUpperCase() + game.result.slice(1)}
                           </span>
                         </div>
-                        {game.players && (
-                          <p className="text-xs text-gray-500 mt-1">{game.players} players</p>
-                        )}
+                        
+                        {/* View Details Button - Shows on Hover */}
+                        <button
+                          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-300 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center space-x-2"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleGameClick(game)
+                          }}
+                          disabled={gameLoading === game.id}
+                          aria-label={`View details for ${game.title || game.sport}`}
+                        >
+                          {gameLoading === game.id ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                              <span>Loading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="h-4 w-4" aria-hidden="true" />
+                              <span>View Details</span>
+                            </>
+                          )}
+                        </button>
                       </div>
                     </div>
+                    
+                    {/* Accessibility: Screen reader only content */}
+                    <span className="sr-only">
+                      {game.title || game.sport} game at {game.location} on {formatDate(game.date)} at {game.time}. 
+                      Status: {game.result}. Type: {game.type}. 
+                      {game.players && `Players: ${game.players}.`}
+                      {game.organizerName && game.type === 'joined' && ` Organized by ${game.organizerName}.`}
+                      Press Enter or Space to view details.
+                    </span>
                   </div>
                 ))}
               </div>
@@ -405,6 +530,14 @@ export default function Profile() {
           </div>
         </div>
       </div>
+
+      {/* Game Details Modal */}
+      <GameDetailsModal
+        game={selectedGame}
+        isOpen={isModalOpen}
+        onClose={handleModalClose}
+        onGameUpdate={handleGameUpdate}
+      />
     </div>
   )
 }
