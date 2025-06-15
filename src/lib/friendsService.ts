@@ -160,6 +160,7 @@ export const friendsService = {
     }
   },
 
+  // CRITICAL FIX: Updated removeFriend function to return correct format
   async removeFriend(friendshipId: string): Promise<{ data: any; error: string | null }> {
     try {
       console.log('👥 Removing friend:', friendshipId)
@@ -181,28 +182,6 @@ export const friendsService = {
       return { data: null, error: 'An unexpected error occurred' }
     }
   },
-
-  async removeFriend(friendshipId: string): Promise<{ data: any; error: string | null }> {
-  try {
-    console.log('👥 Removing friend:', friendshipId)
-    
-    const { error } = await supabase
-      .from('friendships')
-      .delete()
-      .eq('id', friendshipId)
-
-    if (error) {
-      console.error('❌ Error removing friend:', error)
-      return { data: null, error: error.message }
-    }
-
-    console.log('✅ Friend removed successfully')
-    return { data: { success: true }, error: null }
-  } catch (err) {
-    console.error('💥 Unexpected error removing friend:', err)
-    return { data: null, error: 'An unexpected error occurred' }
-  }
-},
 
   async sendPrivateMessage(recipientId: string, content: string): Promise<{ data: PrivateMessage | null; error: string | null }> {
     try {
@@ -242,6 +221,7 @@ export const friendsService = {
     }
   },
 
+  // CRITICAL FIX: Updated getConversations function with better SQL query structure
   async getConversations(): Promise<{ data: Conversation[] | null; error: string | null }> {
     try {
       console.log('💬 Loading conversations')
@@ -249,7 +229,8 @@ export const friendsService = {
       const currentUser = (await supabase.auth.getUser()).data.user
       if (!currentUser) return { data: null, error: 'User not authenticated' }
 
-      const { data, error } = await supabase
+      // First, get all conversations for the user
+      const { data: conversations, error: conversationsError } = await supabase
         .from('conversations')
         .select(`
           id,
@@ -261,34 +242,39 @@ export const friendsService = {
         .or(`participant_1.eq.${currentUser.id},participant_2.eq.${currentUser.id}`)
         .order('last_message_at', { ascending: false })
 
-      if (error) {
-        console.error('❌ Error loading conversations:', error)
-        return { data: null, error: error.message }
+      if (conversationsError) {
+        console.error('❌ Error loading conversations:', conversationsError)
+        return { data: null, error: conversationsError.message }
       }
 
-      // Get other participant details and last messages
+      // Get other participant details and last messages for each conversation
       const conversationsWithDetails = await Promise.all(
-        (data || []).map(async (conv: any) => {
+        (conversations || []).map(async (conv: any) => {
           const otherParticipantId = conv.participant_1 === currentUser.id ? conv.participant_2 : conv.participant_1
 
           // Get other participant profile
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('name, avatar_url')
             .eq('id', otherParticipantId)
             .single()
 
+          if (profileError) {
+            console.error('Error fetching profile:', profileError)
+            return null
+          }
+
           // Get last message
-          const { data: lastMessage } = await supabase
+          const { data: lastMessage, error: messageError } = await supabase
             .from('private_messages')
             .select('content, sender_id, created_at')
             .eq('conversation_id', conv.id)
             .order('created_at', { ascending: false })
             .limit(1)
-            .single()
+            .maybeSingle()
 
           // Get unread count
-          const { count: unreadCount } = await supabase
+          const { count: unreadCount, error: countError } = await supabase
             .from('private_messages')
             .select('*', { count: 'exact', head: true })
             .eq('conversation_id', conv.id)
@@ -316,8 +302,13 @@ export const friendsService = {
         })
       )
 
-      console.log('✅ Loaded conversations:', conversationsWithDetails.length)
-      return { data: conversationsWithDetails, error: null }
+      // Filter out any null results and sort by last message time
+      const validConversations = conversationsWithDetails
+        .filter(conv => conv !== null)
+        .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
+
+      console.log('✅ Loaded conversations:', validConversations.length)
+      return { data: validConversations, error: null }
     } catch (err) {
       console.error('💥 Unexpected error loading conversations:', err)
       return { data: null, error: 'An unexpected error occurred' }
