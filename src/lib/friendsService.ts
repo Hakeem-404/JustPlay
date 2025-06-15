@@ -182,28 +182,6 @@ export const friendsService = {
     }
   },
 
-  async removeFriend(friendshipId: string): Promise<{ data: any; error: string | null }> {
-  try {
-    console.log('👥 Removing friend:', friendshipId)
-    
-    const { error } = await supabase
-      .from('friendships')
-      .delete()
-      .eq('id', friendshipId)
-
-    if (error) {
-      console.error('❌ Error removing friend:', error)
-      return { data: null, error: error.message }
-    }
-
-    console.log('✅ Friend removed successfully')
-    return { data: { success: true }, error: null }
-  } catch (err) {
-    console.error('💥 Unexpected error removing friend:', err)
-    return { data: null, error: 'An unexpected error occurred' }
-  }
-},
-
   async sendPrivateMessage(recipientId: string, content: string): Promise<{ data: PrivateMessage | null; error: string | null }> {
     try {
       console.log('💬 Sending private message to:', recipientId)
