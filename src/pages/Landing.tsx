@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { Play, Users, MapPin, Calendar, ArrowRight, Star, Trophy, Clock } from 'lucide-react'
+import { Play, Users, MapPin, Calendar, ArrowRight, Star, Trophy, Clock, Shield } from 'lucide-react'
 
 export default function Landing() {
   const features = [
@@ -136,6 +136,33 @@ export default function Landing() {
               <div className="text-3xl font-bold text-gray-900 mb-2">50+</div>
               <div className="text-gray-600">Cities</div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Admin Section */}
+      <div className="py-16 sm:py-24 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center justify-center bg-blue-100 p-3 rounded-xl mb-4">
+              <Shield className="h-8 w-8 text-blue-600" />
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              Platform Administration
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              For JustPlay administrators and organizers
+            </p>
+          </div>
+          
+          <div className="flex flex-col md:flex-row gap-6 justify-center">
+            <Link
+              to="/admin-login"
+              className="bg-blue-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-blue-700 transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+            >
+              <Shield className="h-5 w-5 mr-2" />
+              <span>Admin Login</span>
+            </Link>
           </div>
         </div>
       </div>

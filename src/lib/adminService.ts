@@ -9,6 +9,8 @@ export interface AdminStats {
   completedGames: number;
   cancelledGames: number;
   averagePlayersPerGame: number;
+  topSports: { sport: string; count: number }[];
+  topLocations: { location: string; count: number }[];
 }
 
 export interface AdminUser {
@@ -78,7 +80,21 @@ export const adminService = {
         activeGames: 128,
         completedGames: 3245,
         cancelledGames: 83,
-        averagePlayersPerGame: 8.4
+        averagePlayersPerGame: 8.4,
+        topSports: [
+          { sport: 'Basketball', count: 1245 },
+          { sport: 'Soccer', count: 987 },
+          { sport: 'Tennis', count: 654 },
+          { sport: 'Volleyball', count: 432 },
+          { sport: 'Baseball', count: 321 }
+        ],
+        topLocations: [
+          { location: 'Central Park', count: 432 },
+          { location: 'Riverside Park', count: 321 },
+          { location: 'Brooklyn Bridge Park', count: 287 },
+          { location: 'Prospect Park', count: 254 },
+          { location: 'Battery Park', count: 198 }
+        ]
       };
       
       return { data: mockStats, error: null };
@@ -332,6 +348,32 @@ export const adminService = {
     } catch (err) {
       console.error('Error exporting data:', err);
       return { url: null, error: 'Failed to export data' };
+    }
+  },
+  
+  async loginAsAdmin(email: string, password: string): Promise<{ success: boolean; error: string | null }> {
+    try {
+      // Validate admin email
+      if (!email.endsWith('@admin.justplay.com')) {
+        return { success: false, error: 'Invalid admin email address' };
+      }
+      
+      // In a real implementation, this would authenticate against a secure admin system
+      // For demo purposes, we're using the regular auth system with email validation
+      
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (error) {
+        return { success: false, error: error.message };
+      }
+      
+      return { success: true, error: null };
+    } catch (err) {
+      console.error('Error logging in as admin:', err);
+      return { success: false, error: 'Failed to log in as admin' };
     }
   }
 };

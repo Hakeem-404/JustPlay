@@ -11,6 +11,7 @@ import { GameCardSkeleton, ProfileSkeleton } from './components/SkeletonLoader'
 // Lazy-loaded components
 const Landing = lazy(() => import('./pages/Landing'))
 const Login = lazy(() => import('./pages/Login'))
+const AdminLogin = lazy(() => import('./pages/AdminLogin'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const CreateGame = lazy(() => import('./pages/CreateGame'))
 const ProfileSetup = lazy(() => import('./pages/ProfileSetup'))
@@ -113,6 +114,7 @@ function App() {
             <Suspense fallback={<SimpleFallback />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/admin-login" element={<AdminLogin />} />
                 <Route path="/profile/setup" element={
                   <ProtectedRoute>
                     <ProfileSetup />

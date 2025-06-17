@@ -12,13 +12,15 @@ import {
   Bell,
   Crown,
   Trophy,
-  MapPin
+  MapPin,
+  Shield
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from '../contexts/ProfileContext'
 import NotificationCenter from './notifications/NotificationCenter'
 import NotificationBadge from './notifications/NotificationBadge'
 import OfflineBanner from './OfflineBanner'
+import { adminService } from '../lib/adminService'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -33,6 +35,24 @@ export default function Layout({ children }: LayoutProps) {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
   const [isScrolled, setIsScrolled] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  // Check if user is an admin
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (user) {
+        try {
+          const isAdminUser = await adminService.checkAdminStatus(user.id)
+          setIsAdmin(isAdminUser)
+        } catch (err) {
+          console.error('Error checking admin status:', err)
+          setIsAdmin(false)
+        }
+      }
+    }
+    
+    checkAdminStatus()
+  }, [user])
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -122,6 +142,21 @@ export default function Layout({ children }: LayoutProps) {
                     </Link>
                   )
                 })}
+                
+                {/* Admin Link (only for admins) */}
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      location.pathname.startsWith('/admin')
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Shield className="h-4 w-4" />
+                    <span>Admin</span>
+                  </Link>
+                )}
               </nav>
             )}
 
@@ -225,6 +260,18 @@ export default function Layout({ children }: LayoutProps) {
                               <Bell className="h-4 w-4" />
                               <span>Notification Settings</span>
                             </Link>
+                            
+                            {/* Admin Dashboard Link (only for admins) */}
+                            {isAdmin && (
+                              <Link
+                                to="/admin"
+                                className="flex items-center space-x-3 px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 transition-colors"
+                                onClick={() => setIsUserMenuOpen(false)}
+                              >
+                                <Shield className="h-4 w-4" />
+                                <span>Admin Dashboard</span>
+                              </Link>
+                            )}
                           </div>
 
                           {/* Stats Section (Optional) */}
@@ -331,6 +378,22 @@ export default function Layout({ children }: LayoutProps) {
                     </Link>
                   )
                 })}
+                
+                {/* Admin Link (only for admins) */}
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    className={`flex items-center space-x-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors ${
+                      location.pathname.startsWith('/admin')
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Shield className="h-5 w-5" />
+                    <span>Admin Dashboard</span>
+                  </Link>
+                )}
 
                 {/* Mobile profile quick access */}
                 <div className="border-t border-gray-200 pt-2 mt-2">
