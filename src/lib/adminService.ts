@@ -122,23 +122,17 @@ export const adminService = {
           .select('*', { count: 'exact', head: true })
           .eq('status', 'cancelled'),
         
-        // Top sports
+        // Top sports - get all sports and count them manually
         supabase
           .from('games')
-          .select('sport, count')
-          .not('sport', 'is', null)
-          .group('sport')
-          .order('count', { ascending: false })
-          .limit(5),
+          .select('sport')
+          .not('sport', 'is', null),
         
-        // Top locations
+        // Top locations - get all locations and count them manually
         supabase
           .from('games')
-          .select('location, count')
-          .not('location', 'is', null)
-          .group('location')
-          .order('count', { ascending: false })
-          .limit(5),
+          .select('location')
+          .not('location', 'is', null),
         
         // Average players per game
         supabase
@@ -166,17 +160,25 @@ export const adminService = {
         averagePlayers = parseFloat((totalPlayers / averagePlayersResult.data.length).toFixed(1));
       }
       
-      // Format top sports data
-      const topSports = topSportsResult.data?.map(item => ({
-        sport: item.sport,
-        count: item.count
-      })) || [];
+      // Process top sports data manually
+      const sportsCount: { [key: string]: number } = {};
+      topSportsResult.data?.forEach(item => {
+        sportsCount[item.sport] = (sportsCount[item.sport] || 0) + 1;
+      });
+      const topSports = Object.entries(sportsCount)
+        .map(([sport, count]) => ({ sport, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
       
-      // Format top locations data
-      const topLocations = topLocationsResult.data?.map(item => ({
-        location: item.location,
-        count: item.count
-      })) || [];
+      // Process top locations data manually
+      const locationsCount: { [key: string]: number } = {};
+      topLocationsResult.data?.forEach(item => {
+        locationsCount[item.location] = (locationsCount[item.location] || 0) + 1;
+      });
+      const topLocations = Object.entries(locationsCount)
+        .map(([location, count]) => ({ location, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
       
       // Compile stats
       const stats: AdminStats = {
@@ -433,22 +435,17 @@ export const adminService = {
           .gte('created_at', startDateStr)
           .order('created_at', { ascending: true }),
         
-        // Sport popularity
+        // Sport popularity - get all sports and count manually
         supabase
           .from('games')
-          .select('sport, count')
-          .not('sport', 'is', null)
-          .group('sport')
-          .order('count', { ascending: false }),
+          .select('sport')
+          .not('sport', 'is', null),
         
-        // Location popularity
+        // Location popularity - get all locations and count manually
         supabase
           .from('games')
-          .select('location, count')
+          .select('location')
           .not('location', 'is', null)
-          .group('location')
-          .order('count', { ascending: false })
-          .limit(10)
       ]);
       
       // Check for errors
@@ -465,11 +462,26 @@ export const adminService = {
       const gameCreations = gameCreationResult.data || [];
       const gameCreationsByDay = this.aggregateDataByTimeUnit(gameCreations, timeRange);
       
-      // Process sport popularity data
-      const sportPopularity = sportPopularityResult.data || [];
+      // Process sport popularity data manually
+      const sportsCount: { [key: string]: number } = {};
+      sportPopularityResult.data?.forEach(item => {
+        sportsCount[item.sport] = (sportsCount[item.sport] || 0) + 1;
+      });
       
-      // Process location popularity data
-      const locationPopularity = locationPopularityResult.data || [];
+      // Process location popularity data manually
+      const locationsCount: { [key: string]: number } = {};
+      locationPopularityResult.data?.forEach(item => {
+        locationsCount[item.location] = (locationsCount[item.location] || 0) + 1;
+      });
+      
+      // Get top 10 locations
+      const topLocations = Object.entries(locationsCount)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 10)
+        .reduce((acc, [location, count]) => {
+          acc[location] = count;
+          return acc;
+        }, {} as { [key: string]: number });
       
       // Compile report data
       const reportData = {
@@ -483,14 +495,8 @@ export const adminService = {
           creationRate: gameCreationsByDay.map(day => day.count),
           labels: gameCreationsByDay.map(day => day.label)
         },
-        sports: sportPopularity.reduce((acc, item) => {
-          acc[item.sport] = item.count;
-          return acc;
-        }, {}),
-        locations: locationPopularity.reduce((acc, item) => {
-          acc[item.location] = item.count;
-          return acc;
-        }, {})
+        sports: sportsCount,
+        locations: topLocations
       };
       
       return { data: reportData, error: null };
