@@ -18,6 +18,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from '../contexts/ProfileContext'
 import NotificationCenter from './notifications/NotificationCenter'
 import NotificationBadge from './notifications/NotificationBadge'
+import OfflineBanner from './OfflineBanner'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -31,6 +32,7 @@ export default function Layout({ children }: LayoutProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
+  const [isScrolled, setIsScrolled] = useState(false)
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -48,6 +50,16 @@ export default function Layout({ children }: LayoutProps) {
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [isUserMenuOpen])
+
+  // Track scroll position for header shadow
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10)
+    }
+    
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   const handleSignOut = async () => {
     try {
@@ -79,7 +91,7 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Fixed Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+      <header className={`bg-white border-b border-gray-200 sticky top-0 z-50 transition-shadow ${isScrolled ? 'shadow-md' : 'shadow-sm'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
@@ -257,6 +269,7 @@ export default function Layout({ children }: LayoutProps) {
                   <button
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
                     className="md:hidden p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                    aria-label={isMenuOpen ? "Close menu" : "Open menu"}
                   >
                     {isMenuOpen ? (
                       <X className="h-6 w-6" />
@@ -363,6 +376,9 @@ export default function Layout({ children }: LayoutProps) {
       <main className="flex-1">
         {children}
       </main>
+
+      {/* Offline Banner */}
+      <OfflineBanner />
     </div>
   )
 }

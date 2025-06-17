@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, List, Map as MapIcon, AlertCircle, RefreshCw, Users, Calendar, MapPin, Clock, User, Star, Crown, Trophy, Target } from 'lucide-react'
 import GameMap from '../components/map/GameMap'
@@ -8,6 +8,9 @@ import { gameParticipantService } from '../lib/gameParticipantService'
 import { Game, MapFilters } from '../types/game'
 import { useGeolocation } from '../hooks/useGeolocation'
 import { useAuth } from '../contexts/AuthContext'
+import PullToRefresh from '../components/PullToRefresh'
+import { GameCardSkeleton } from '../components/SkeletonLoader'
+import VirtualizedList from '../components/VirtualizedList'
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -20,7 +23,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [myGamesLoading, setMyGamesLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { latitude, longitude } = useGeolocation()
+  const { latitude, longitude, requestLocation } = useGeolocation()
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // CRITICAL FIX: Dashboard manages mapFilters as single source of truth
   const [mapFilters, setMapFilters] = useState<MapFilters>({
@@ -49,7 +53,7 @@ export default function Dashboard() {
     setMapFilters(newFilters)
   }
 
-  const loadGames = async () => {
+  const loadGames = useCallback(async () => {
     setLoading(true)
     setError(null)
 
@@ -192,7 +196,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [mapFilters, latitude, longitude, user])
 
   const loadUserParticipations = async (gamesList: Game[]) => {
     if (!user) return
@@ -250,7 +254,7 @@ export default function Dashboard() {
     console.log('🔍 DEBUG: Current mapFilters:', mapFilters)
     console.log('🔍 DEBUG: User location:', { latitude, longitude })
     loadGames()
-  }, [mapFilters, latitude, longitude]) // Watch mapFilters instead of filters
+  }, [mapFilters, latitude, longitude, loadGames]) // Watch mapFilters instead of filters
 
   // Load my games when switching to that view
   useEffect(() => {
@@ -289,7 +293,7 @@ export default function Dashboard() {
       gamesSubscription.unsubscribe()
       participantSubscription.unsubscribe()
     }
-  }, [user, mapFilters, latitude, longitude, viewMode])
+  }, [user, mapFilters, latitude, longitude, viewMode, loadGames])
 
   const handleGameClick = (game: Game) => {
     console.log('🔍 DEBUG: Game clicked:', game.id, game.sport)
@@ -407,6 +411,144 @@ export default function Dashboard() {
     return { joined, waitlist, upcoming, past }
   }
 
+  // Function to handle pull-to-refresh
+  const handleRefresh = async () => {
+    if (viewMode === 'map' || viewMode === 'list') {
+      await loadGames()
+    } else if (viewMode === 'my-games') {
+      await loadMyGames()
+    }
+    
+    // Add vibration feedback if supported
+    if (navigator.vibrate) {
+      navigator.vibrate(100)
+    }
+  }
+
+  // Function to handle native sharing
+  const handleShareApp = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'JustPlay - Find your game, play your sport',
+          text: 'Check out JustPlay, the app that helps you find and join local sports games!',
+          url: window.location.origin
+        })
+      } catch (error) {
+        console.error('Error sharing:', error)
+      }
+    }
+  }
+
+  // Game card renderer for virtualized list
+  const renderGameCard = (game: Game, index: number, style: React.CSSProperties) => {
+    const spotsLeft = game.maxPlayers - game.currentPlayers
+    const participationStatus = getParticipationStatus(game.id)
+    const isOrganizer = isUserOrganizer(game)
+    const distance = getGameDistance(game)
+    
+    return (
+      <div 
+        key={game.id}
+        className="px-4 py-2"
+        style={style}
+      >
+        <div
+          className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer touch-manipulation"
+          onClick={() => handleGameClick(game)}
+        >
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex-1">
+              <div className="flex items-center space-x-3 mb-2">
+                <h3 className="text-xl font-semibold text-gray-900 truncate">
+                  {game.title || game.sport}
+                </h3>
+                {getParticipationBadge(game.id)}
+                {isOrganizer && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                    <Crown className="h-3 w-3 mr-1" />
+                    Organizer
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center text-gray-600 mb-2">
+                <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
+                <span className="truncate">{game.location}</span>
+                {distance && (
+                  <span className="ml-2 text-sm text-gray-500">
+                    • {formatDistance(distance)}
+                  </span>
+                )}
+              </div>
+            </div>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSkillLevelColor(game.skillLevel)}`}>
+              {game.skillLevel === 'any' ? 'Any Level' : game.skillLevel.charAt(0).toUpperCase() + game.skillLevel.slice(1)}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="flex items-center text-sm text-gray-600">
+              <Calendar className="h-4 w-4 mr-2 flex-shrink-0" />
+              <div>
+                <span className="font-medium">Date:</span>
+                <p>{formatDate(game.date)}</p>
+              </div>
+            </div>
+            <div className="flex items-center text-sm text-gray-600">
+              <Clock className="h-4 w-4 mr-2 flex-shrink-0" />
+              <div>
+                <span className="font-medium">Time:</span>
+                <p>{game.time}</p>
+              </div>
+            </div>
+            <div className="flex items-center text-sm text-gray-600">
+              <Users className="h-4 w-4 mr-2 flex-shrink-0" />
+              <div>
+                <span className="font-medium">Players:</span>
+                <p>{game.currentPlayers}/{game.maxPlayers}</p>
+              </div>
+            </div>
+            <div className="flex items-center text-sm text-gray-600">
+              <User className="h-4 w-4 mr-2 flex-shrink-0" />
+              <div>
+                <span className="font-medium">Organizer:</span>
+                <p className="truncate">{game.organizerName}</p>
+              </div>
+            </div>
+          </div>
+
+          {game.description && (
+            <p className="text-gray-700 mb-4 line-clamp-2">{game.description}</p>
+          )}
+
+          <div className="flex justify-between items-center">
+            <div className="text-sm">
+              {spotsLeft > 0 ? (
+                <span className="text-green-600 font-medium">
+                  {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left
+                </span>
+              ) : (
+                <span className="text-red-600 font-medium">Game full</span>
+              )}
+              {participationStatus === 'waitlist' && (
+                <span className="text-yellow-600 font-medium ml-2">• On waitlist</span>
+              )}
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleGameClick(game)
+              }}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors touch-manipulation"
+            >
+              View Details
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading && games.length === 0) {
     return (
       <div className="h-screen flex flex-col">
@@ -509,7 +651,7 @@ export default function Dashboard() {
                 }`}
               >
                 <MapIcon className="h-4 w-4" />
-                <span>Map</span>
+                <span className="hidden sm:inline">Map</span>
               </button>
               <button
                 onClick={() => setViewMode('list')}
@@ -520,7 +662,7 @@ export default function Dashboard() {
                 }`}
               >
                 <List className="h-4 w-4" />
-                <span>List</span>
+                <span className="hidden sm:inline">List</span>
               </button>
               <button
                 onClick={() => setViewMode('my-games')}
@@ -531,7 +673,7 @@ export default function Dashboard() {
                 }`}
               >
                 <Trophy className="h-4 w-4" />
-                <span>My Games</span>
+                <span className="hidden sm:inline">My Games</span>
               </button>
             </div>
 
@@ -541,7 +683,7 @@ export default function Dashboard() {
               className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2 shadow-sm"
             >
               <Plus className="h-4 w-4" />
-              <span>Create Game</span>
+              <span>Create</span>
             </Link>
           </div>
         </div>
@@ -558,312 +700,230 @@ export default function Dashboard() {
             onMapFiltersChange={handleMapFiltersChange}
           />
         ) : viewMode === 'my-games' ? (
-          <div className="h-full overflow-auto p-4 sm:p-6 lg:p-8">
-            <div className="max-w-4xl mx-auto">
-              {/* My Games Stats */}
-              {myGames.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                  {(() => {
-                    const stats = getMyGamesStats()
-                    return (
-                      <>
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                          <div className="text-2xl font-bold text-green-600">{stats.joined}</div>
-                          <div className="text-sm text-green-700">Joined</div>
-                        </div>
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
-                          <div className="text-2xl font-bold text-yellow-600">{stats.waitlist}</div>
-                          <div className="text-sm text-yellow-700">Waitlist</div>
-                        </div>
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-                          <div className="text-2xl font-bold text-blue-600">{stats.upcoming}</div>
-                          <div className="text-sm text-blue-700">Upcoming</div>
-                        </div>
-                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
-                          <div className="text-2xl font-bold text-gray-600">{stats.past}</div>
-                          <div className="text-sm text-gray-700">Past</div>
-                        </div>
-                      </>
-                    )
-                  })()}
-                </div>
-              )}
+          <div className="h-full overflow-auto" ref={scrollContainerRef}>
+            <PullToRefresh onRefresh={loadMyGames}>
+              <div className="p-4 sm:p-6 lg:p-8">
+                <div className="max-w-4xl mx-auto">
+                  {/* My Games Stats */}
+                  {myGames.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                      {(() => {
+                        const stats = getMyGamesStats()
+                        return (
+                          <>
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                              <div className="text-2xl font-bold text-green-600">{stats.joined}</div>
+                              <div className="text-sm text-green-700">Joined</div>
+                            </div>
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                              <div className="text-2xl font-bold text-yellow-600">{stats.waitlist}</div>
+                              <div className="text-sm text-yellow-700">Waitlist</div>
+                            </div>
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                              <div className="text-2xl font-bold text-blue-600">{stats.upcoming}</div>
+                              <div className="text-sm text-blue-700">Upcoming</div>
+                            </div>
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+                              <div className="text-2xl font-bold text-gray-600">{stats.past}</div>
+                              <div className="text-sm text-gray-700">Past</div>
+                            </div>
+                          </>
+                        )
+                      })()}
+                    </div>
+                  )}
 
-              {myGamesLoading ? (
-                <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p className="text-gray-600">Loading your games...</p>
-                </div>
-              ) : myGames.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-gray-400 mb-4">
-                    <Trophy className="h-16 w-16 mx-auto" />
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No games yet</h3>
-                  <p className="text-gray-600 mb-6">
-                    You haven't joined any games yet. Start by finding games near you!
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <button
-                      onClick={() => setViewMode('map')}
-                      className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors inline-flex items-center space-x-2"
-                    >
-                      <Target className="h-4 w-4" />
-                      <span>Find Games</span>
-                    </button>
-                    <Link
-                      to="/create-game"
-                      className="bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors inline-flex items-center space-x-2"
-                    >
-                      <Plus className="h-4 w-4" />
-                      <span>Create Game</span>
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid gap-4">
-                  {myGames.map((participation) => {
-                    const game = participation.game
-                    const distance = getGameDistance(game)
-                    const isUpcoming = new Date(game.date) >= new Date()
-                    
-                    return (
-                      <div
-                        key={participation.participationId}
-                        className={`bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer ${
-                          !isUpcoming ? 'opacity-75' : ''
-                        }`}
-                        onClick={() => handleGameClick(game)}
-                      >
-                        <div className="flex justify-between items-start mb-4">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-3 mb-2">
-                              <h3 className="text-xl font-semibold text-gray-900">
-                                {game.title || game.sport}
-                              </h3>
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                participation.participationStatus === 'joined' 
-                                  ? 'bg-green-100 text-green-700' 
-                                  : 'bg-yellow-100 text-yellow-700'
-                              }`}>
-                                {participation.participationStatus === 'joined' ? (
-                                  <>
-                                    <Users className="h-3 w-3 mr-1" />
-                                    Joined
-                                  </>
-                                ) : (
-                                  <>
-                                    <Clock className="h-3 w-3 mr-1" />
-                                    Waitlist
-                                  </>
-                                )}
-                              </span>
-                              {!isUpcoming && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                                  Past Game
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center text-gray-600 mb-2">
-                              <MapPin className="h-4 w-4 mr-1" />
-                              <span className="truncate">{game.location}</span>
-                              {distance && (
-                                <span className="ml-2 text-sm text-gray-500">
-                                  • {formatDistance(distance)}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSkillLevelColor(game.skillLevel)}`}>
-                            {game.skillLevel === 'any' ? 'Any Level' : game.skillLevel.charAt(0).toUpperCase() + game.skillLevel.slice(1)}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Calendar className="h-4 w-4 mr-2" />
-                            <div>
-                              <span className="font-medium">Date:</span>
-                              <p>{formatDate(game.date)}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Clock className="h-4 w-4 mr-2" />
-                            <div>
-                              <span className="font-medium">Time:</span>
-                              <p>{game.time}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Users className="h-4 w-4 mr-2" />
-                            <div>
-                              <span className="font-medium">Players:</span>
-                              <p>{game.currentPlayers}/{game.maxPlayers}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center text-sm text-gray-600">
-                            <User className="h-4 w-4 mr-2" />
-                            <div>
-                              <span className="font-medium">Organizer:</span>
-                              <p className="truncate">{game.organizerName}</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {game.description && (
-                          <p className="text-gray-700 mb-4 line-clamp-2">{game.description}</p>
-                        )}
-
-                        <div className="flex justify-between items-center">
-                          <div className="text-sm text-gray-500">
-                            Joined {new Date(participation.joinedAt).toLocaleDateString()}
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleGameClick(game)
-                            }}
-                            className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                          >
-                            View Details
-                          </button>
-                        </div>
+                  {myGamesLoading ? (
+                    <div className="space-y-4">
+                      {[...Array(3)].map((_, i) => (
+                        <GameCardSkeleton key={i} />
+                      ))}
+                    </div>
+                  ) : myGames.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="text-gray-400 mb-4">
+                        <Trophy className="h-16 w-16 mx-auto" />
                       </div>
-                    )
-                  })}
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No games yet</h3>
+                      <p className="text-gray-600 mb-6">
+                        You haven't joined any games yet. Start by finding games near you!
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                        <button
+                          onClick={() => setViewMode('map')}
+                          className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors inline-flex items-center space-x-2"
+                        >
+                          <Target className="h-4 w-4" />
+                          <span>Find Games</span>
+                        </button>
+                        <Link
+                          to="/create-game"
+                          className="bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors inline-flex items-center space-x-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          <span>Create Game</span>
+                        </Link>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {myGames.map((participation) => {
+                        const game = participation.game
+                        const distance = getGameDistance(game)
+                        const isUpcoming = new Date(game.date) >= new Date()
+                        
+                        return (
+                          <div
+                            key={participation.participationId}
+                            className={`bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer touch-manipulation ${
+                              !isUpcoming ? 'opacity-75' : ''
+                            }`}
+                            onClick={() => handleGameClick(game)}
+                          >
+                            <div className="flex justify-between items-start mb-4">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-3 mb-2">
+                                  <h3 className="text-xl font-semibold text-gray-900 truncate">
+                                    {game.title || game.sport}
+                                  </h3>
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                    participation.participationStatus === 'joined' 
+                                      ? 'bg-green-100 text-green-700' 
+                                      : 'bg-yellow-100 text-yellow-700'
+                                  }`}>
+                                    {participation.participationStatus === 'joined' ? (
+                                      <>
+                                        <Users className="h-3 w-3 mr-1" />
+                                        Joined
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Clock className="h-3 w-3 mr-1" />
+                                        Waitlist
+                                      </>
+                                    )}
+                                  </span>
+                                  {!isUpcoming && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                                      Past Game
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center text-gray-600 mb-2">
+                                  <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
+                                  <span className="truncate">{game.location}</span>
+                                  {distance && (
+                                    <span className="ml-2 text-sm text-gray-500">
+                                      • {formatDistance(distance)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSkillLevelColor(game.skillLevel)}`}>
+                                {game.skillLevel === 'any' ? 'Any Level' : game.skillLevel.charAt(0).toUpperCase() + game.skillLevel.slice(1)}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                              <div className="flex items-center text-sm text-gray-600">
+                                <Calendar className="h-4 w-4 mr-2 flex-shrink-0" />
+                                <div>
+                                  <span className="font-medium">Date:</span>
+                                  <p>{formatDate(game.date)}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center text-sm text-gray-600">
+                                <Clock className="h-4 w-4 mr-2 flex-shrink-0" />
+                                <div>
+                                  <span className="font-medium">Time:</span>
+                                  <p>{game.time}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center text-sm text-gray-600">
+                                <Users className="h-4 w-4 mr-2 flex-shrink-0" />
+                                <div>
+                                  <span className="font-medium">Players:</span>
+                                  <p>{game.currentPlayers}/{game.maxPlayers}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center text-sm text-gray-600">
+                                <User className="h-4 w-4 mr-2 flex-shrink-0" />
+                                <div>
+                                  <span className="font-medium">Organizer:</span>
+                                  <p className="truncate">{game.organizerName}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {game.description && (
+                              <p className="text-gray-700 mb-4 line-clamp-2">{game.description}</p>
+                            )}
+
+                            <div className="flex justify-between items-center">
+                              <div className="text-sm text-gray-500">
+                                Joined {new Date(participation.joinedAt).toLocaleDateString()}
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleGameClick(game)
+                                }}
+                                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors touch-manipulation"
+                              >
+                                View Details
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
+            </PullToRefresh>
           </div>
         ) : (
-          <div className="h-full overflow-auto p-4 sm:p-6 lg:p-8">
-            <div className="max-w-4xl mx-auto">
-              {games.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-gray-400 mb-4">
-                    <svg className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No games found</h3>
-                  <p className="text-gray-600 mb-6">
-                    No games match your current filters. Try adjusting your search criteria or create a new game.
-                  </p>
-                  <Link
-                    to="/create-game"
-                    className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors inline-flex items-center space-x-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Create First Game</span>
-                  </Link>
-                </div>
-              ) : (
-                <div className="grid gap-4">
-                  {games.map((game) => {
-                    const spotsLeft = game.maxPlayers - game.currentPlayers
-                    const participationStatus = getParticipationStatus(game.id)
-                    const isOrganizer = isUserOrganizer(game)
-                    const distance = getGameDistance(game)
-                    
-                    return (
-                      <div
-                        key={game.id}
-                        className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
-                        onClick={() => handleGameClick(game)}
-                      >
-                        <div className="flex justify-between items-start mb-4">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-3 mb-2">
-                              <h3 className="text-xl font-semibold text-gray-900">
-                                {game.title || game.sport}
-                              </h3>
-                              {getParticipationBadge(game.id)}
-                              {isOrganizer && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                                  <Crown className="h-3 w-3 mr-1" />
-                                  Organizer
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center text-gray-600 mb-2">
-                              <MapPin className="h-4 w-4 mr-1" />
-                              <span className="truncate">{game.location}</span>
-                              {distance && (
-                                <span className="ml-2 text-sm text-gray-500">
-                                  • {formatDistance(distance)}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSkillLevelColor(game.skillLevel)}`}>
-                            {game.skillLevel === 'any' ? 'Any Level' : game.skillLevel.charAt(0).toUpperCase() + game.skillLevel.slice(1)}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Calendar className="h-4 w-4 mr-2" />
-                            <div>
-                              <span className="font-medium">Date:</span>
-                              <p>{formatDate(game.date)}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Clock className="h-4 w-4 mr-2" />
-                            <div>
-                              <span className="font-medium">Time:</span>
-                              <p>{game.time}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Users className="h-4 w-4 mr-2" />
-                            <div>
-                              <span className="font-medium">Players:</span>
-                              <p>{game.currentPlayers}/{game.maxPlayers}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center text-sm text-gray-600">
-                            <User className="h-4 w-4 mr-2" />
-                            <div>
-                              <span className="font-medium">Organizer:</span>
-                              <p className="truncate">{game.organizerName}</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {game.description && (
-                          <p className="text-gray-700 mb-4 line-clamp-2">{game.description}</p>
-                        )}
-
-                        <div className="flex justify-between items-center">
-                          <div className="text-sm">
-                            {spotsLeft > 0 ? (
-                              <span className="text-green-600 font-medium">
-                                {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left
-                              </span>
-                            ) : (
-                              <span className="text-red-600 font-medium">Game full</span>
-                            )}
-                            {participationStatus === 'waitlist' && (
-                              <span className="text-yellow-600 font-medium ml-2">• On waitlist</span>
-                            )}
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleGameClick(game)
-                            }}
-                            className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                          >
-                            View Details
-                          </button>
-                        </div>
+          <div className="h-full overflow-auto" ref={scrollContainerRef}>
+            <PullToRefresh onRefresh={loadGames}>
+              <div className="p-4 sm:p-6 lg:p-8">
+                <div className="max-w-4xl mx-auto">
+                  {games.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="text-gray-400 mb-4">
+                        <svg className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
                       </div>
-                    )
-                  })}
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No games found</h3>
+                      <p className="text-gray-600 mb-6">
+                        No games match your current filters. Try adjusting your search criteria or create a new game.
+                      </p>
+                      <Link
+                        to="/create-game"
+                        className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors inline-flex items-center space-x-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Create First Game</span>
+                      </Link>
+                    </div>
+                  ) : loading ? (
+                    <div className="space-y-4">
+                      {[...Array(3)].map((_, i) => (
+                        <GameCardSkeleton key={i} />
+                      ))}
+                    </div>
+                  ) : (
+                    <VirtualizedList
+                      items={games}
+                      rowHeight={300}
+                      renderRow={renderGameCard}
+                      overscanRowCount={3}
+                      scrollElement={scrollContainerRef.current}
+                    />
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
+            </PullToRefresh>
           </div>
         )}
       </div>
@@ -875,6 +935,30 @@ export default function Dashboard() {
         onClose={handleModalClose}
         onGameUpdate={handleGameUpdate}
       />
+
+      {/* Mobile FAB for location */}
+      {(viewMode === 'map' || viewMode === 'list') && (
+        <button
+          onClick={requestLocation}
+          className="md:hidden fixed right-4 bottom-20 bg-blue-600 text-white p-3 rounded-full shadow-lg z-10"
+          aria-label="Get my location"
+        >
+          <Target className="h-6 w-6" />
+        </button>
+      )}
+
+      {/* Mobile FAB for sharing */}
+      {navigator.share && (
+        <button
+          onClick={handleShareApp}
+          className="md:hidden fixed right-4 bottom-4 bg-green-600 text-white p-3 rounded-full shadow-lg z-10"
+          aria-label="Share app"
+        >
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }
