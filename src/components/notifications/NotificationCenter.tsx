@@ -33,7 +33,8 @@ export default function NotificationCenter({ className = '' }: NotificationCente
     markAllAsRead, 
     loadMore,
     refreshNotifications
-  } = useNavigate()
+  } = useNotifications()
+  const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
   const [showPreferences, setShowPreferences] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)

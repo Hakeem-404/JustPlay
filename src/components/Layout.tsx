@@ -16,6 +16,8 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from '../contexts/ProfileContext'
+import NotificationCenter from './notifications/NotificationCenter'
+import NotificationBadge from './notifications/NotificationBadge'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -115,12 +117,8 @@ export default function Layout({ children }: LayoutProps) {
             <div className="flex items-center space-x-4">
               {user ? (
                 <div className="flex items-center space-x-3">
-                  {/* Notifications - Future feature */}
-                  <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors relative">
-                    <Bell className="h-5 w-5" />
-                    {/* Notification badge placeholder */}
-                    <span className="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
-                  </button>
+                  {/* Notifications */}
+                  <NotificationCenter />
 
                   {/* User Menu */}
                   <div className="relative" ref={userMenuRef}>
@@ -205,6 +203,15 @@ export default function Layout({ children }: LayoutProps) {
                             >
                               <MessageCircle className="h-4 w-4" />
                               <span>Messages</span>
+                            </Link>
+                            
+                            <Link
+                              to="/notifications"
+                              className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                              onClick={() => setIsUserMenuOpen(false)}
+                            >
+                              <Bell className="h-4 w-4" />
+                              <span>Notification Settings</span>
                             </Link>
                           </div>
 
@@ -303,7 +310,10 @@ export default function Layout({ children }: LayoutProps) {
                       }`}
                       onClick={() => setIsMenuOpen(false)}
                     >
-                      <Icon className="h-5 w-5" />
+                      <div className="relative">
+                        <Icon className="h-5 w-5" />
+                        {item.name === 'Messages' && <NotificationBadge className="absolute -top-1 -right-1" />}
+                      </div>
                       <span>{item.name}</span>
                     </Link>
                   )
@@ -318,6 +328,18 @@ export default function Layout({ children }: LayoutProps) {
                   >
                     <User className="h-5 w-5" />
                     <span>Your Profile</span>
+                  </Link>
+                  
+                  <Link
+                    to="/notifications"
+                    className="flex items-center space-x-3 px-3 py-3 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors relative"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <div className="relative">
+                      <Bell className="h-5 w-5" />
+                      <NotificationBadge className="absolute -top-1 -right-1" />
+                    </div>
+                    <span>Notifications</span>
                   </Link>
 
                   <button
