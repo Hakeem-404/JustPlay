@@ -20,6 +20,7 @@ import { useProfile } from '../contexts/ProfileContext'
 import NotificationCenter from './notifications/NotificationCenter'
 import NotificationBadge from './notifications/NotificationBadge'
 import OfflineBanner from './OfflineBanner'
+import Footer from './Footer'
 import { adminService } from '../lib/adminService'
 
 interface LayoutProps {
@@ -109,7 +110,7 @@ export default function Layout({ children }: LayoutProps) {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Fixed Header */}
       <header className={`bg-white border-b border-gray-200 sticky top-0 z-50 transition-shadow ${isScrolled ? 'shadow-md' : 'shadow-sm'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -439,6 +440,9 @@ export default function Layout({ children }: LayoutProps) {
       <main className="flex-1">
         {children}
       </main>
+
+      {/* Footer */}
+      <Footer />
 
       {/* Offline Banner */}
       <OfflineBanner />

@@ -13,6 +13,7 @@ import {
   Bell
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
+import Footer from '../../../components/Footer';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -42,7 +43,7 @@ export default function AdminLayout({ children, currentPage }: AdminLayoutProps)
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Sidebar for desktop */}
       <div className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col">
         <div className="flex min-h-0 flex-1 flex-col border-r border-gray-200 bg-white">
@@ -99,7 +100,7 @@ export default function AdminLayout({ children, currentPage }: AdminLayoutProps)
       </div>
 
       {/* Mobile header */}
-      <div className="md:pl-64">
+      <div className="md:pl-64 flex flex-col flex-1">
         <div className="sticky top-0 z-10 bg-white md:hidden border-b border-gray-200">
           <div className="flex h-16 items-center justify-between px-4">
             <div className="flex items-center">
@@ -179,9 +180,12 @@ export default function AdminLayout({ children, currentPage }: AdminLayoutProps)
         </div>
 
         {/* Main content */}
-        <main className="md:pl-0">
+        <main className="flex-1">
           {children}
         </main>
+        
+        {/* Footer */}
+        <Footer />
       </div>
     </div>
   );
