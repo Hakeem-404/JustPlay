@@ -5,6 +5,7 @@ import { ProfileProvider } from './contexts/ProfileContext'
 import { NotificationProvider } from './contexts/NotificationContext'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
+import AdminProtectedRoute from './components/AdminProtectedRoute'
 import ProfileSetupGuard from './components/ProfileSetupGuard'
 import { GameCardSkeleton, ProfileSkeleton } from './components/SkeletonLoader'
 
@@ -226,49 +227,41 @@ function App() {
                         <Route 
                           path="/admin" 
                           element={
-                            <ProtectedRoute>
-                              <ProfileSetupGuard>
-                                <Suspense fallback={<SimpleFallback />}>
-                                  <AdminDashboard />
-                                </Suspense>
-                              </ProfileSetupGuard>
-                            </ProtectedRoute>
+                            <AdminProtectedRoute>
+                              <Suspense fallback={<SimpleFallback />}>
+                                <AdminDashboard />
+                              </Suspense>
+                            </AdminProtectedRoute>
                           } 
                         />
                         <Route 
                           path="/admin/users" 
                           element={
-                            <ProtectedRoute>
-                              <ProfileSetupGuard>
-                                <Suspense fallback={<SimpleFallback />}>
-                                  <AdminUsers />
-                                </Suspense>
-                              </ProfileSetupGuard>
-                            </ProtectedRoute>
+                            <AdminProtectedRoute>
+                              <Suspense fallback={<SimpleFallback />}>
+                                <AdminUsers />
+                              </Suspense>
+                            </AdminProtectedRoute>
                           } 
                         />
                         <Route 
                           path="/admin/games" 
                           element={
-                            <ProtectedRoute>
-                              <ProfileSetupGuard>
-                                <Suspense fallback={<SimpleFallback />}>
-                                  <AdminGames />
-                                </Suspense>
-                              </ProfileSetupGuard>
-                            </ProtectedRoute>
+                            <AdminProtectedRoute>
+                              <Suspense fallback={<SimpleFallback />}>
+                                <AdminGames />
+                              </Suspense>
+                            </AdminProtectedRoute>
                           } 
                         />
                         <Route 
                           path="/admin/reports" 
                           element={
-                            <ProtectedRoute>
-                              <ProfileSetupGuard>
-                                <Suspense fallback={<SimpleFallback />}>
-                                  <AdminReports />
-                                </Suspense>
-                              </ProfileSetupGuard>
-                            </ProtectedRoute>
+                            <AdminProtectedRoute>
+                              <Suspense fallback={<SimpleFallback />}>
+                                <AdminReports />
+                              </Suspense>
+                            </AdminProtectedRoute>
                           } 
                         />
                       </Routes>

@@ -17,7 +17,8 @@ import {
   RefreshCw,
   Trash2
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { adminService } from '../../lib/adminService';
+import AdminLayout from './components/AdminLayout';
 import { Game } from '../../types/game';
 
 interface AdminGame extends Game {
@@ -27,7 +28,6 @@ interface AdminGame extends Game {
 
 export default function AdminGames() {
   const [games, setGames] = useState<AdminGame[]>([]);
-  const [filteredGames, setFilteredGames] = useState<AdminGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,82 +36,33 @@ export default function AdminGames() {
   const [selectedGame, setSelectedGame] = useState<AdminGame | null>(null);
   const [showGameModal, setShowGameModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [totalGames, setTotalGames] = useState(0);
   
   const gamesPerPage = 10;
 
   useEffect(() => {
     loadGames();
-  }, []);
-
-  useEffect(() => {
-    filterGames();
-  }, [searchQuery, statusFilter, games]);
+  }, [currentPage, statusFilter]);
 
   const loadGames = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      // In a real implementation, this would be a database query
-      // For demo purposes, we're using mock data
+      const { data, total, error } = await adminService.getGames(
+        searchQuery,
+        statusFilter,
+        currentPage,
+        gamesPerPage
+      );
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (error) {
+        setError(error);
+        return;
+      }
       
-      // Generate mock games
-      const mockGames: AdminGame[] = Array.from({ length: 50 }, (_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() + Math.floor(Math.random() * 14) - 7); // -7 to +7 days
-        
-        const sports = ['Basketball', 'Soccer', 'Tennis', 'Volleyball', 'Baseball'];
-        const sport = sports[Math.floor(Math.random() * sports.length)];
-        
-        const locations = ['Central Park', 'Riverside Park', 'Brooklyn Bridge Park', 'Prospect Park', 'Battery Park'];
-        const location = locations[Math.floor(Math.random() * locations.length)];
-        
-        const maxPlayers = Math.floor(Math.random() * 15) + 5; // 5 to 20
-        const currentPlayers = Math.floor(Math.random() * (maxPlayers + 1)); // 0 to maxPlayers
-        
-        const statuses: ('active' | 'cancelled' | 'completed')[] = ['active', 'cancelled', 'completed'];
-        const statusWeights = [0.6, 0.2, 0.2]; // 60% active, 20% cancelled, 20% completed
-        const randomValue = Math.random();
-        let statusIndex = 0;
-        let cumulativeWeight = 0;
-        
-        for (let j = 0; j < statuses.length; j++) {
-          cumulativeWeight += statusWeights[j];
-          if (randomValue <= cumulativeWeight) {
-            statusIndex = j;
-            break;
-          }
-        }
-        
-        const status = statuses[statusIndex];
-        
-        return {
-          id: `game-${i + 1}`,
-          sport,
-          title: `${sport} Game ${i + 1}`,
-          location,
-          latitude: 40.7128 + (Math.random() - 0.5) * 0.1,
-          longitude: -74.006 + (Math.random() - 0.5) * 0.1,
-          date: date.toISOString().split('T')[0],
-          time: `${Math.floor(Math.random() * 12) + 8}:00`,
-          maxPlayers,
-          currentPlayers,
-          skillLevel: ['beginner', 'intermediate', 'advanced', 'any'][Math.floor(Math.random() * 4)] as any,
-          description: `This is a ${sport} game at ${location}.`,
-          organizerId: `user-${Math.floor(Math.random() * 20) + 1}`,
-          organizerName: `Organizer ${Math.floor(Math.random() * 20) + 1}`,
-          isPrivate: Math.random() > 0.8,
-          status,
-          createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-          reportCount: Math.random() > 0.8 ? Math.floor(Math.random() * 5) + 1 : 0
-        };
-      });
-      
-      setGames(mockGames);
-      setFilteredGames(mockGames);
+      setGames(data || []);
+      setTotalGames(total);
     } catch (err) {
       console.error('Error loading games:', err);
       setError('Failed to load games');
@@ -120,78 +71,58 @@ export default function AdminGames() {
     }
   };
 
-  const filterGames = () => {
-    let filtered = [...games];
-    
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(game => 
-        game.title?.toLowerCase().includes(query) || 
-        game.sport.toLowerCase().includes(query) ||
-        game.location.toLowerCase().includes(query) ||
-        game.organizerName.toLowerCase().includes(query)
-      );
-    }
-    
-    // Apply status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(game => game.status === statusFilter);
-    }
-    
-    setFilteredGames(filtered);
-    setCurrentPage(1); // Reset to first page when filters change
+  const handleSearch = () => {
+    setCurrentPage(1);
+    loadGames();
   };
 
   const handleGameAction = async (gameId: string, action: 'cancel' | 'complete' | 'delete') => {
     setActionLoading(true);
     
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { success, error } = await adminService.updateGameStatus(gameId, action);
       
-      if (action === 'delete') {
-        // Remove game from list
-        setGames(games.filter(game => game.id !== gameId));
-        if (showGameModal) {
-          setShowGameModal(false);
-        }
-      } else {
-        // Update game status
-        const newStatus = action === 'cancel' ? 'cancelled' : 'completed';
-        
-        const updatedGames = games.map(game => {
-          if (game.id === gameId) {
-            return { ...game, status: newStatus as any };
+      if (error) {
+        setError(error);
+        return;
+      }
+      
+      if (success) {
+        if (action === 'delete') {
+          // Remove game from list
+          setGames(games.filter(game => game.id !== gameId));
+          if (showGameModal) {
+            setShowGameModal(false);
           }
-          return game;
-        });
-        
-        setGames(updatedGames);
-        
-        // If a game is selected in the modal, update that too
-        if (selectedGame && selectedGame.id === gameId) {
-          const updatedGame = updatedGames.find(g => g.id === gameId);
-          if (updatedGame) {
-            setSelectedGame(updatedGame);
+        } else {
+          // Update game status
+          const newStatus = action === 'cancel' ? 'cancelled' : 'completed';
+          
+          const updatedGames = games.map(game => {
+            if (game.id === gameId) {
+              return { ...game, status: newStatus as any };
+            }
+            return game;
+          });
+          
+          setGames(updatedGames);
+          
+          // If a game is selected in the modal, update that too
+          if (selectedGame && selectedGame.id === gameId) {
+            const updatedGame = updatedGames.find(g => g.id === gameId);
+            if (updatedGame) {
+              setSelectedGame(updatedGame);
+            }
           }
         }
       }
-      
-      // Success message would go here
     } catch (err) {
       console.error('Error performing game action:', err);
-      // Error message would go here
+      setError('Failed to update game');
     } finally {
       setActionLoading(false);
     }
   };
-
-  // Pagination
-  const indexOfLastGame = currentPage * gamesPerPage;
-  const indexOfFirstGame = indexOfLastGame - gamesPerPage;
-  const currentGames = filteredGames.slice(indexOfFirstGame, indexOfLastGame);
-  const totalPages = Math.ceil(filteredGames.length / gamesPerPage);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -227,23 +158,15 @@ export default function AdminGames() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <AdminLayout currentPage="games">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <Link
-            to="/admin"
-            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 font-medium"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Admin Dashboard
-          </Link>
-          
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Game Management</h1>
               <p className="text-gray-600">
-                {filteredGames.length} game{filteredGames.length !== 1 ? 's' : ''}
+                {totalGames} game{totalGames !== 1 ? 's' : ''}
               </p>
             </div>
             <div className="mt-4 sm:mt-0">
@@ -268,6 +191,7 @@ export default function AdminGames() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Search games by title, sport, location, or organizer..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -286,6 +210,13 @@ export default function AdminGames() {
                 <option value="completed">Completed Games</option>
               </select>
             </div>
+            
+            <button
+              onClick={handleSearch}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            >
+              Search
+            </button>
           </div>
         </div>
 
@@ -307,7 +238,7 @@ export default function AdminGames() {
                 Try Again
               </button>
             </div>
-          ) : filteredGames.length === 0 ? (
+          ) : games.length === 0 ? (
             <div className="p-8 text-center">
               <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 font-medium mb-2">No games found</p>
@@ -328,7 +259,7 @@ export default function AdminGames() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {currentGames.map((game) => (
+                  {games.map((game) => (
                     <tr key={game.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -395,12 +326,12 @@ export default function AdminGames() {
         </div>
 
         {/* Pagination */}
-        {!loading && !error && filteredGames.length > 0 && (
+        {!loading && !error && games.length > 0 && (
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-700">
-              Showing <span className="font-medium">{indexOfFirstGame + 1}</span> to{' '}
-              <span className="font-medium">{Math.min(indexOfLastGame, filteredGames.length)}</span> of{' '}
-              <span className="font-medium">{filteredGames.length}</span> games
+              Showing <span className="font-medium">{(currentPage - 1) * gamesPerPage + 1}</span> to{' '}
+              <span className="font-medium">{Math.min(currentPage * gamesPerPage, totalGames)}</span> of{' '}
+              <span className="font-medium">{totalGames}</span> games
             </div>
             <div className="flex space-x-2">
               <button
@@ -411,8 +342,8 @@ export default function AdminGames() {
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => prev + 1)}
+                disabled={currentPage * gamesPerPage >= totalGames}
                 className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -566,6 +497,6 @@ export default function AdminGames() {
           </div>
         </div>
       )}
-    </div>
+    </AdminLayout>
   );
 }

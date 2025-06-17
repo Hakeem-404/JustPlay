@@ -15,68 +15,48 @@ import {
   XCircle,
   RefreshCw
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
-
-interface UserData {
-  id: string;
-  name: string;
-  email: string;
-  location: string;
-  created_at: string;
-  games_played: number;
-  games_organized: number;
-  average_rating: number;
-  status: 'active' | 'suspended' | 'banned';
-}
+import { adminService } from '../../lib/adminService';
+import AdminLayout from './components/AdminLayout';
 
 export default function AdminUsers() {
-  const [users, setUsers] = useState<UserData[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<UserData[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended' | 'banned'>('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [totalUsers, setTotalUsers] = useState(0);
   
   const usersPerPage = 10;
 
   useEffect(() => {
     loadUsers();
-  }, []);
-
-  useEffect(() => {
-    filterUsers();
-  }, [searchQuery, statusFilter, users]);
+  }, [currentPage, statusFilter]);
 
   const loadUsers = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      // In a real implementation, this would be a database query
-      // For demo purposes, we're using mock data
+      const { data, total, error } = await adminService.getUsers(
+        searchQuery,
+        statusFilter,
+        currentPage,
+        usersPerPage
+      );
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (error) {
+        setError(error);
+        return;
+      }
       
-      // Generate mock users
-      const mockUsers: UserData[] = Array.from({ length: 50 }, (_, i) => ({
-        id: `user-${i + 1}`,
-        name: `User ${i + 1}`,
-        email: `user${i + 1}@example.com`,
-        location: ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'][Math.floor(Math.random() * 5)],
-        created_at: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000).toISOString(),
-        games_played: Math.floor(Math.random() * 50),
-        games_organized: Math.floor(Math.random() * 20),
-        average_rating: 3 + Math.random() * 2,
-        status: Math.random() > 0.9 ? (Math.random() > 0.5 ? 'suspended' : 'banned') : 'active'
-      }));
-      
-      setUsers(mockUsers);
-      setFilteredUsers(mockUsers);
+      setUsers(data || []);
+      setFilteredUsers(data || []);
+      setTotalUsers(total);
     } catch (err) {
       console.error('Error loading users:', err);
       setError('Failed to load users');
@@ -85,84 +65,41 @@ export default function AdminUsers() {
     }
   };
 
-  const filterUsers = () => {
-    let filtered = [...users];
-    
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(user => 
-        user.name.toLowerCase().includes(query) || 
-        user.email.toLowerCase().includes(query) ||
-        user.location.toLowerCase().includes(query)
-      );
-    }
-    
-    // Apply status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(user => user.status === statusFilter);
-    }
-    
-    setFilteredUsers(filtered);
-    setCurrentPage(1); // Reset to first page when filters change
+  const handleSearch = () => {
+    setCurrentPage(1);
+    loadUsers();
   };
 
   const handleUserAction = async (userId: string, action: 'suspend' | 'unsuspend' | 'ban' | 'unban') => {
     setActionLoading(true);
     
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { success, error } = await adminService.updateUserStatus(userId, action);
       
-      // Update user status in mock data
-      const updatedUsers = users.map(user => {
-        if (user.id === userId) {
-          let newStatus: 'active' | 'suspended' | 'banned';
-          
-          switch (action) {
-            case 'suspend':
-              newStatus = 'suspended';
-              break;
-            case 'unsuspend':
-              newStatus = 'active';
-              break;
-            case 'ban':
-              newStatus = 'banned';
-              break;
-            case 'unban':
-              newStatus = 'active';
-              break;
-          }
-          
-          return { ...user, status: newStatus };
-        }
-        return user;
-      });
-      
-      setUsers(updatedUsers);
-      
-      // If a user is selected in the modal, update that too
-      if (selectedUser && selectedUser.id === userId) {
-        const updatedUser = updatedUsers.find(u => u.id === userId);
-        if (updatedUser) {
-          setSelectedUser(updatedUser);
-        }
+      if (error) {
+        setError(error);
+        return;
       }
       
-      // Success message would go here
+      if (success) {
+        // Reload users to reflect changes
+        await loadUsers();
+        
+        // If a user is selected in the modal, update that too
+        if (selectedUser && selectedUser.id === userId) {
+          const updatedUser = users.find(u => u.id === userId);
+          if (updatedUser) {
+            setSelectedUser(updatedUser);
+          }
+        }
+      }
     } catch (err) {
       console.error('Error performing user action:', err);
-      // Error message would go here
+      setError('Failed to update user status');
     } finally {
       setActionLoading(false);
     }
   };
-
-  // Pagination
-  const indexOfLastUser = currentPage * usersPerPage;
-  const indexOfFirstUser = indexOfLastUser - usersPerPage;
-  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
-  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -173,23 +110,15 @@ export default function AdminUsers() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <AdminLayout currentPage="users">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <Link
-            to="/admin"
-            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 font-medium"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Admin Dashboard
-          </Link>
-          
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">User Management</h1>
               <p className="text-gray-600">
-                {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}
+                {totalUsers} user{totalUsers !== 1 ? 's' : ''}
               </p>
             </div>
             <div className="mt-4 sm:mt-0">
@@ -214,6 +143,7 @@ export default function AdminUsers() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Search users by name, email, or location..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -232,6 +162,13 @@ export default function AdminUsers() {
                 <option value="banned">Banned Users</option>
               </select>
             </div>
+            
+            <button
+              onClick={handleSearch}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            >
+              Search
+            </button>
           </div>
         </div>
 
@@ -274,7 +211,7 @@ export default function AdminUsers() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {currentUsers.map((user) => (
+                  {filteredUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -360,9 +297,9 @@ export default function AdminUsers() {
         {!loading && !error && filteredUsers.length > 0 && (
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-700">
-              Showing <span className="font-medium">{indexOfFirstUser + 1}</span> to{' '}
-              <span className="font-medium">{Math.min(indexOfLastUser, filteredUsers.length)}</span> of{' '}
-              <span className="font-medium">{filteredUsers.length}</span> users
+              Showing <span className="font-medium">{(currentPage - 1) * usersPerPage + 1}</span> to{' '}
+              <span className="font-medium">{Math.min(currentPage * usersPerPage, totalUsers)}</span> of{' '}
+              <span className="font-medium">{totalUsers}</span> users
             </div>
             <div className="flex space-x-2">
               <button
@@ -373,8 +310,8 @@ export default function AdminUsers() {
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => prev + 1)}
+                disabled={currentPage * usersPerPage >= totalUsers}
                 className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -537,6 +474,6 @@ export default function AdminUsers() {
           </div>
         </div>
       )}
-    </div>
+    </AdminLayout>
   );
 }
