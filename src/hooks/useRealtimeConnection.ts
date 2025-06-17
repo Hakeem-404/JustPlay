@@ -20,6 +20,7 @@ export interface RealtimeConnectionHook {
 
 const MAX_RECONNECT_ATTEMPTS = 5
 const RECONNECT_DELAY = 1000 // Start with 1 second
+const HEARTBEAT_INTERVAL = 10000 // Check every 10 seconds
 
 export function useRealtimeConnection(): RealtimeConnectionHook {
   const { user } = useAuth()
@@ -31,6 +32,48 @@ export function useRealtimeConnection(): RealtimeConnectionHook {
   const channelsRef = useRef<Map<string, RealtimeChannel>>(new Map())
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
   const heartbeatIntervalRef = useRef<NodeJS.Timeout>()
+  const isInitializedRef = useRef(false)
+
+  // Check if we have a valid connection
+  const checkConnection = useCallback(() => {
+    if (!user) {
+      setConnectionStatus(prev => ({ ...prev, status: 'disconnected' }))
+      return false
+    }
+
+    // Check if Supabase realtime is connected
+    const isRealtimeConnected = supabase.realtime.isConnected()
+    
+    // Also check if we have any active channels
+    const hasActiveChannels = channelsRef.current.size > 0
+    
+    console.log('🔍 Connection check:', {
+      isRealtimeConnected,
+      hasActiveChannels,
+      channelCount: channelsRef.current.size,
+      user: !!user
+    })
+
+    if (isRealtimeConnected || hasActiveChannels) {
+      setConnectionStatus(prev => ({
+        ...prev,
+        status: 'connected',
+        lastConnected: new Date(),
+        reconnectAttempts: 0,
+        error: undefined
+      }))
+      return true
+    } else {
+      // Only set to disconnected if we were previously connected or trying to connect
+      setConnectionStatus(prev => {
+        if (prev.status === 'connected' || prev.status === 'connecting') {
+          return { ...prev, status: 'disconnected' }
+        }
+        return prev
+      })
+      return false
+    }
+  }, [user])
 
   // Monitor connection health with heartbeat
   const startHeartbeat = useCallback(() => {
@@ -38,22 +81,13 @@ export function useRealtimeConnection(): RealtimeConnectionHook {
       clearInterval(heartbeatIntervalRef.current)
     }
 
+    // Initial check
+    checkConnection()
+
     heartbeatIntervalRef.current = setInterval(() => {
-      if (supabase.realtime.isConnected()) {
-        setConnectionStatus(prev => ({
-          ...prev,
-          status: 'connected',
-          lastConnected: new Date(),
-          reconnectAttempts: 0
-        }))
-      } else {
-        setConnectionStatus(prev => ({
-          ...prev,
-          status: 'disconnected'
-        }))
-      }
-    }, 5000) // Check every 5 seconds
-  }, [])
+      checkConnection()
+    }, HEARTBEAT_INTERVAL)
+  }, [checkConnection])
 
   const stopHeartbeat = useCallback(() => {
     if (heartbeatIntervalRef.current) {
@@ -89,16 +123,13 @@ export function useRealtimeConnection(): RealtimeConnectionHook {
       }
 
       reconnectTimeoutRef.current = setTimeout(() => {
-        // Disconnect and reconnect all channels
-        channelsRef.current.forEach((channel) => {
-          supabase.removeChannel(channel)
-        })
+        // Force reconnect Supabase realtime
+        supabase.realtime.disconnect()
         
-        // Clear channels and let components resubscribe
-        channelsRef.current.clear()
-        
-        // Restart heartbeat
-        startHeartbeat()
+        setTimeout(() => {
+          // Restart heartbeat which will trigger connection check
+          startHeartbeat()
+        }, 1000)
       }, delay)
 
       return {
@@ -119,9 +150,13 @@ export function useRealtimeConnection(): RealtimeConnectionHook {
     const existingChannel = channelsRef.current.get(channelName)
     if (existingChannel) {
       supabase.removeChannel(existingChannel)
+      channelsRef.current.delete(channelName)
     }
 
     console.log(`📡 Subscribing to channel: ${channelName}`)
+
+    // Set status to connecting when we start subscribing
+    setConnectionStatus(prev => ({ ...prev, status: 'connecting' }))
 
     const channel = supabase
       .channel(channelName)
@@ -187,18 +222,26 @@ export function useRealtimeConnection(): RealtimeConnectionHook {
     channelsRef.current.forEach((trackedChannel, channelName) => {
       if (trackedChannel === channel) {
         channelsRef.current.delete(channelName)
+        console.log(`📡 Removed channel ${channelName} from tracking`)
       }
     })
+
+    // Update connection status if no channels remain
+    if (channelsRef.current.size === 0) {
+      setConnectionStatus(prev => ({ ...prev, status: 'disconnected' }))
+    }
   }, [])
 
   // Initialize connection when user is available
   useEffect(() => {
-    if (user) {
+    if (user && !isInitializedRef.current) {
       console.log('🔌 Initializing real-time connection for user:', user.id)
+      isInitializedRef.current = true
       setConnectionStatus(prev => ({ ...prev, status: 'connecting' }))
       startHeartbeat()
-    } else {
+    } else if (!user) {
       console.log('🔌 User not available, disconnecting real-time')
+      isInitializedRef.current = false
       stopHeartbeat()
       
       // Clean up all channels
@@ -214,9 +257,11 @@ export function useRealtimeConnection(): RealtimeConnectionHook {
     }
 
     return () => {
-      stopHeartbeat()
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
+      if (!user) {
+        stopHeartbeat()
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current)
+        }
       }
     }
   }, [user, startHeartbeat, stopHeartbeat])
@@ -236,6 +281,7 @@ export function useRealtimeConnection(): RealtimeConnectionHook {
         supabase.removeChannel(channel)
       })
       channelsRef.current.clear()
+      isInitializedRef.current = false
     }
   }, [stopHeartbeat])
 

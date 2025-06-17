@@ -52,7 +52,7 @@ export default function Messages() {
 
   // Set up real-time subscription for conversations list
   useEffect(() => {
-    if (!user || !isConnected) return
+    if (!user) return
 
     console.log('📡 Setting up conversations list subscription')
     
@@ -66,7 +66,7 @@ export default function Messages() {
         subscription.unsubscribe()
       }
     }
-  }, [user, isConnected])
+  }, [user])
 
   const loadConversations = async () => {
     setLoading(true)
@@ -140,6 +140,21 @@ export default function Messages() {
     conv.otherParticipant.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+  const getConnectionStatusText = () => {
+    switch (connectionStatus.status) {
+      case 'connected':
+        return 'Real-time connected'
+      case 'connecting':
+        return 'Connecting...'
+      case 'disconnected':
+        return 'Offline - messages will sync when reconnected'
+      case 'error':
+        return `Connection error: ${connectionStatus.error || 'Unknown error'}`
+      default:
+        return 'Checking connection...'
+    }
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -174,13 +189,10 @@ export default function Messages() {
             {isConnected ? (
               <Wifi className="h-4 w-4 text-green-500" />
             ) : (
-              <WifiOff className="h-4 w-4 text-red-500" />
+              <WifiOff className="h-4 w-4 text-orange-500" />
             )}
             <span className="text-xs text-gray-600">
-              {connectionStatus.status === 'connected' && 'Real-time connected'}
-              {connectionStatus.status === 'connecting' && 'Connecting...'}
-              {connectionStatus.status === 'disconnected' && 'Offline mode'}
-              {connectionStatus.status === 'error' && 'Connection error'}
+              {getConnectionStatusText()}
             </span>
           </div>
           
@@ -247,9 +259,6 @@ export default function Messages() {
                               {conversation.unreadCount > 9 ? '9+' : conversation.unreadCount}
                             </span>
                           )}
-                          {!isConnected && (
-                            <WifiOff className="h-3 w-3 text-gray-400" />
-                          )}
                         </div>
                       </div>
                       {conversation.lastMessage && (
@@ -292,9 +301,9 @@ export default function Messages() {
                         Online
                       </span>
                     ) : (
-                      <span className="flex items-center text-xs text-gray-500">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full mr-1"></div>
-                        Offline
+                      <span className="flex items-center text-xs text-orange-600">
+                        <div className="w-2 h-2 bg-orange-500 rounded-full mr-1"></div>
+                        Syncing...
                       </span>
                     )}
                   </div>
@@ -317,11 +326,11 @@ export default function Messages() {
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Select a conversation</h3>
               <p>Choose a conversation from the sidebar to start messaging</p>
               {!isConnected && (
-                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                   <div className="flex items-center justify-center space-x-2">
-                    <WifiOff className="h-4 w-4 text-yellow-600" />
-                    <span className="text-yellow-700 text-sm">
-                      You're offline. Messages will sync when connection is restored.
+                    <WifiOff className="h-4 w-4 text-orange-600" />
+                    <span className="text-orange-700 text-sm">
+                      Connection syncing - messages will appear when connected
                     </span>
                   </div>
                 </div>

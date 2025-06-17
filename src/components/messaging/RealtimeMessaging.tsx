@@ -84,7 +84,7 @@ export default function RealtimeMessaging({
 
   // Set up real-time subscription
   useEffect(() => {
-    if (!conversationId || !isConnected) return
+    if (!conversationId) return
 
     console.log('📡 Setting up real-time subscription for conversation:', conversationId)
 
@@ -195,7 +195,7 @@ export default function RealtimeMessaging({
       typingTimeoutRef.current.forEach(timeout => clearTimeout(timeout))
       typingTimeoutRef.current.clear()
     }
-  }, [conversationId, isConnected, subscribe, unsubscribe, user, recipientName, updateMessageStatus])
+  }, [conversationId, subscribe, unsubscribe, user, recipientName, updateMessageStatus])
 
   // Load messages when conversation changes
   useEffect(() => {
@@ -360,6 +360,21 @@ export default function RealtimeMessaging({
     }
   }
 
+  const getConnectionStatusText = () => {
+    switch (connectionStatus.status) {
+      case 'connected':
+        return 'Connected'
+      case 'connecting':
+        return 'Connecting...'
+      case 'disconnected':
+        return 'Syncing messages...'
+      case 'error':
+        return `Error: ${connectionStatus.error || 'Connection failed'}`
+      default:
+        return 'Checking connection...'
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Connection Status */}
@@ -368,17 +383,14 @@ export default function RealtimeMessaging({
           {isConnected ? (
             <Wifi className="h-4 w-4 text-green-500" />
           ) : (
-            <WifiOff className="h-4 w-4 text-red-500" />
+            <WifiOff className="h-4 w-4 text-orange-500" />
           )}
           <span className="text-xs text-gray-600">
-            {connectionStatus.status === 'connected' && 'Connected'}
-            {connectionStatus.status === 'connecting' && 'Connecting...'}
-            {connectionStatus.status === 'disconnected' && 'Disconnected'}
-            {connectionStatus.status === 'error' && `Error: ${connectionStatus.error}`}
+            {getConnectionStatusText()}
           </span>
         </div>
         
-        {!isConnected && (
+        {connectionStatus.status === 'error' && (
           <button
             onClick={reconnect}
             className="text-blue-600 hover:text-blue-700 text-xs flex items-center space-x-1"
@@ -490,17 +502,17 @@ export default function RealtimeMessaging({
               value={newMessage}
               onChange={handleInputChange}
               onKeyPress={handleKeyPress}
-              placeholder="Type a message..."
+              placeholder={isConnected ? "Type a message..." : "Type a message (will send when connected)..."}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
               rows={1}
               style={{ minHeight: '40px', maxHeight: '120px' }}
-              disabled={sending || !isConnected}
+              disabled={sending}
             />
           </div>
           
           <button
             onClick={handleSendMessage}
-            disabled={!newMessage.trim() || sending || !isConnected}
+            disabled={!newMessage.trim() || sending}
             className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
             {sending ? (
@@ -510,6 +522,13 @@ export default function RealtimeMessaging({
             )}
           </button>
         </div>
+        
+        {!isConnected && (
+          <div className="mt-2 text-xs text-orange-600 flex items-center space-x-1">
+            <WifiOff className="h-3 w-3" />
+            <span>Messages will be sent when connection is restored</span>
+          </div>
+        )}
       </div>
     </div>
   )
