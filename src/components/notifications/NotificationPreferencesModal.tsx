@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Bell, Mail, BellOff, MailOff, Loader2, Save, CheckCircle, AlertCircle } from 'lucide-react'
+import { X, Bell, Mail, BellOff, Mail as MailOff, Loader2, Save, CheckCircle, AlertCircle } from 'lucide-react'
 import { useNotifications } from '../../contexts/NotificationContext'
 import { NotificationPreferences } from '../../lib/notificationService'
 

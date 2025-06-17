@@ -1,21 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { 
-  ArrowLeft, 
-  Bell, 
-  Mail, 
-  BellOff, 
-  MailOff, 
-  Save, 
-  CheckCircle, 
-  AlertCircle,
-  Loader2,
-  Calendar,
-  MessageCircle,
-  UserPlus,
-  Clock,
-  Info
-} from 'lucide-react'
+import { ArrowLeft, Bell, Mail, BellOff, Mail as MailOff, Save, CheckCircle, AlertCircle, Loader2, Calendar, MessageCircle, UserPlus, Clock, Info } from 'lucide-react'
 import { useNotifications } from '../contexts/NotificationContext'
 import { NotificationPreferences } from '../lib/notificationService'
 
