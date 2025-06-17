@@ -76,9 +76,9 @@ export const ratingService = {
         .from('player_stats')
         .select('*')
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      if (error) {
         console.error('❌ Error loading player stats:', error)
         return { data: null, error: error.message }
       }
