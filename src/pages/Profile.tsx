@@ -19,7 +19,10 @@ import {
 import { useProfile } from '../contexts/ProfileContext'
 import { useAuth } from '../contexts/AuthContext'
 import { profileService } from '../lib/profileService'
+import { ratingService } from '../lib/ratingService'
 import GameDetailsModal from '../components/GameDetailsModal'
+import GameRatingModal from '../components/rating/GameRatingModal'
+import PlayerRatingsSection from '../components/rating/PlayerRatingsSection'
 import { gameService } from '../lib/gameService'
 import { Game } from '../types/game'
 
@@ -73,6 +76,10 @@ export default function Profile() {
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [gameLoading, setGameLoading] = useState<string | null>(null)
+
+  // Rating modal state
+  const [ratingModalOpen, setRatingModalOpen] = useState(false)
+  const [selectedGameForRating, setSelectedGameForRating] = useState<GameHistory | null>(null)
 
   useEffect(() => {
     if (user) {
@@ -131,14 +138,38 @@ export default function Profile() {
     }
   }
 
+  const handleRateGameClick = async (gameHistoryItem: GameHistory) => {
+    // Check if user has already rated this game
+    const { data: hasRated } = await ratingService.hasUserRatedGame(gameHistoryItem.id)
+    
+    if (hasRated) {
+      // Show message that they've already rated
+      alert('You have already rated players for this game.')
+      return
+    }
+
+    setSelectedGameForRating(gameHistoryItem)
+    setRatingModalOpen(true)
+  }
+
   const handleModalClose = () => {
     setIsModalOpen(false)
     setSelectedGame(null)
   }
 
+  const handleRatingModalClose = () => {
+    setRatingModalOpen(false)
+    setSelectedGameForRating(null)
+  }
+
   const handleGameUpdate = (updatedGame: Game) => {
     setSelectedGame(updatedGame)
     // Optionally refresh the game history to reflect changes
+    loadUserData()
+  }
+
+  const handleRatingsSubmitted = () => {
+    // Refresh user data to update stats
     loadUserData()
   }
 
@@ -204,6 +235,10 @@ export default function Profile() {
       case 'joined': return 'bg-green-100 text-green-700'
       default: return 'bg-gray-100 text-gray-700'
     }
+  }
+
+  const canRateGame = (game: GameHistory) => {
+    return game.result === 'completed' && game.type === 'joined'
   }
 
   return (
@@ -400,28 +435,44 @@ export default function Profile() {
                             </span>
                           </div>
                           
-                          {/* View Details Button - Shows on Hover */}
-                          <button
-                            className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-300 bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center space-x-2 w-full sm:w-auto justify-center"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleGameClick(game)
-                            }}
-                            disabled={gameLoading === game.id}
-                            aria-label={`View details for ${game.title || game.sport}`}
-                          >
-                            {gameLoading === game.id ? (
-                              <>
-                                <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-white"></div>
-                                <span>Loading...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Eye className="h-3 w-3 sm:h-4 sm:w-4" aria-hidden="true" />
-                                <span>View Details</span>
-                              </>
+                          {/* Action Buttons - Shows on Hover */}
+                          <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-300 flex space-x-2">
+                            <button
+                              className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center space-x-2"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleGameClick(game)
+                              }}
+                              disabled={gameLoading === game.id}
+                              aria-label={`View details for ${game.title || game.sport}`}
+                            >
+                              {gameLoading === game.id ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-white"></div>
+                                  <span>Loading...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Eye className="h-3 w-3 sm:h-4 sm:w-4" aria-hidden="true" />
+                                  <span>View Details</span>
+                                </>
+                              )}
+                            </button>
+                            
+                            {canRateGame(game) && (
+                              <button
+                                className="bg-yellow-600 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 flex items-center space-x-2"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleRateGameClick(game)
+                                }}
+                                aria-label={`Rate players for ${game.title || game.sport}`}
+                              >
+                                <Star className="h-3 w-3 sm:h-4 sm:w-4" aria-hidden="true" />
+                                <span>Rate Players</span>
+                              </button>
                             )}
-                          </button>
+                          </div>
                         </div>
                       </div>
                       
@@ -438,6 +489,9 @@ export default function Profile() {
                 </div>
               )}
             </div>
+
+            {/* Player Ratings Section */}
+            <PlayerRatingsSection userId={user.id} isOwnProfile={true} />
           </div>
 
           {/* Right Column - Stats - Fixed overflow and improved responsive design */}
@@ -550,6 +604,18 @@ export default function Profile() {
           onClose={handleModalClose}
           onGameUpdate={handleGameUpdate}
         />
+
+        {/* Rating Modal */}
+        {selectedGameForRating && (
+          <GameRatingModal
+            gameId={selectedGameForRating.id}
+            gameSport={selectedGameForRating.sport}
+            gameDate={selectedGameForRating.date}
+            isOpen={ratingModalOpen}
+            onClose={handleRatingModalClose}
+            onRatingsSubmitted={handleRatingsSubmitted}
+          />
+        )}
       </div>
     </div>
   )

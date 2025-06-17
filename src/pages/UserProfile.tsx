@@ -26,6 +26,9 @@ import { useAuth } from '../contexts/AuthContext'
 import { profileService } from '../lib/profileService'
 import { friendsService } from '../lib/friendsService'
 import { Profile } from '../types/profile'
+import PlayerRatingsSection from '../components/rating/PlayerRatingsSection'
+import PlayerRatingBadge from '../components/rating/PlayerRatingBadge'
+import { ratingService } from '../lib/ratingService'
 
 const SPORT_ICONS: { [key: string]: string } = {
   'Basketball': '🏀',
@@ -57,6 +60,7 @@ export default function UserProfile() {
   
   const [profile, setProfile] = useState<Profile | null>(null)
   const [userStats, setUserStats] = useState<UserStats | null>(null)
+  const [playerStats, setPlayerStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [error, setError] = useState('')
@@ -85,10 +89,11 @@ export default function UserProfile() {
     try {
       console.log('👤 Loading user profile for:', userId)
 
-      // Load user profile and stats
-      const [profileData, statsData] = await Promise.all([
+      // Load user profile, stats, and player stats
+      const [profileData, statsData, playerStatsData] = await Promise.all([
         profileService.getProfile(userId),
-        profileService.getUserStats(userId)
+        profileService.getUserStats(userId),
+        ratingService.getPlayerStats(userId)
       ])
 
       if (!profileData) {
@@ -98,6 +103,7 @@ export default function UserProfile() {
 
       setProfile(profileData)
       setUserStats(statsData)
+      setPlayerStats(playerStatsData.data)
 
       console.log('✅ Loaded user profile:', profileData.name)
     } catch (err) {
@@ -382,9 +388,12 @@ export default function UserProfile() {
                     <MapPin className="h-4 w-4 mr-1" />
                     <span>{profile.location}</span>
                   </div>
-                  <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getSkillLevelColor(profile.skill_level)}`}>
-                    {getSkillLevelLabel(profile.skill_level)}
-                  </span>
+                  <div className="flex items-center space-x-3">
+                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getSkillLevelColor(profile.skill_level)}`}>
+                      {getSkillLevelLabel(profile.skill_level)}
+                    </span>
+                    {playerStats && <PlayerRatingBadge stats={playerStats} />}
+                  </div>
                   {friendshipStatus.status === 'friends' && (
                     <div className="mt-2">
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
@@ -427,6 +436,9 @@ export default function UserProfile() {
                 ))}
               </div>
             </div>
+
+            {/* Player Ratings Section */}
+            {userId && <PlayerRatingsSection userId={userId} />}
           </div>
 
           {/* Right Column - Stats */}
@@ -480,6 +492,86 @@ export default function UserProfile() {
                 </div>
               )}
             </div>
+
+            {/* Trust Indicators */}
+            {playerStats && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                  <Shield className="h-5 w-5 mr-2 text-blue-600" />
+                  Trust Score
+                </h2>
+                
+                <div className="space-y-4">
+                  {/* Verified Status */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-700">Verified Player</span>
+                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      playerStats.verifiedPlayer 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {playerStats.verifiedPlayer ? 'Verified' : 'Not Verified'}
+                    </div>
+                  </div>
+                  
+                  {/* Completion Rate */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-gray-700">Completion Rate</span>
+                      <span className={`text-sm font-medium ${
+                        playerStats.completionRate >= 90 
+                          ? 'text-green-600' 
+                          : playerStats.completionRate >= 75 
+                          ? 'text-yellow-600' 
+                          : 'text-red-600'
+                      }`}>
+                        {playerStats.completionRate.toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full ${
+                          playerStats.completionRate >= 90 
+                            ? 'bg-green-500' 
+                            : playerStats.completionRate >= 75 
+                            ? 'bg-yellow-500' 
+                            : 'bg-red-500'
+                        }`}
+                        style={{ width: `${Math.min(playerStats.completionRate, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Positive Feedback */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-gray-700">Positive Feedback</span>
+                      <span className="text-sm font-medium text-blue-600">
+                        {playerStats.totalRatings > 0 
+                          ? `${Math.round((playerStats.positiveFeedbackCount / playerStats.totalRatings) * 100)}%`
+                          : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-500 h-2 rounded-full"
+                        style={{ 
+                          width: playerStats.totalRatings > 0 
+                            ? `${Math.round((playerStats.positiveFeedbackCount / playerStats.totalRatings) * 100)}%`
+                            : '0%'
+                        }}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Games Played */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-700">Games Completed</span>
+                    <span className="text-blue-600 font-medium">{playerStats.gamesCompleted}</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Member Since */}
             <div className="bg-gradient-to-br from-blue-50 to-green-50 rounded-2xl p-6 border border-gray-200">
