@@ -1095,4 +1095,4 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
       )}
     </div>
   )
-}
+} 
