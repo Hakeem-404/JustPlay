@@ -56,6 +56,7 @@ interface GameHistory {
   location: string
   date: string
   time: string
+  status?: string
   type: 'organized' | 'joined'
   result: 'completed' | 'cancelled' | 'upcoming'
   players?: string
@@ -164,7 +165,23 @@ export default function Profile() {
 
   const handleGameUpdate = (updatedGame: Game) => {
     setSelectedGame(updatedGame)
-    // Optionally refresh the game history to reflect changes
+    
+    // Update game history to reflect changes
+    setGameHistory(prevHistory => 
+      prevHistory.map(historyItem => {
+        if (historyItem.id === updatedGame.id) {
+          return {
+            ...historyItem,
+            status: updatedGame.status,
+            result: updatedGame.status === 'completed' ? 'completed' : 
+                   updatedGame.status === 'cancelled' ? 'cancelled' : 'upcoming'
+          }
+        }
+        return historyItem
+      })
+    )
+    
+    // Refresh user data to update stats
     loadUserData()
   }
 

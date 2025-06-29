@@ -54,17 +54,31 @@ export const profileService = {
         console.error('❌ Error fetching participated games count:', participatedError)
       }
 
+      // Get average rating
+      const { data: playerStats, error: playerStatsError } = await supabase
+        .from('player_stats')
+        .select('average_rating')
+        .eq('user_id', userId)
+        .single()
+
+      let averageRating = profile.average_rating
+      if (!playerStatsError && playerStats) {
+        averageRating = playerStats.average_rating
+      }
+
       // Update profile with real stats
       const updatedProfile = {
         ...profile,
         games_organized: organizedCount || 0,
-        games_played: participatedCount || 0
+        games_played: participatedCount || 0,
+        average_rating: averageRating
       }
 
       console.log('✅ Profile with real stats:', {
         name: updatedProfile.name,
         games_organized: updatedProfile.games_organized,
-        games_played: updatedProfile.games_played
+        games_played: updatedProfile.games_played,
+        average_rating: updatedProfile.average_rating
       })
 
       return updatedProfile
@@ -95,7 +109,6 @@ export const profileService = {
         `)
         .eq('organizer_id', userId)
         .order('date', { ascending: false })
-        .limit(10)
 
       if (organizedError) {
         console.error('❌ Error fetching organized games:', organizedError)
@@ -125,7 +138,6 @@ export const profileService = {
         .eq('user_id', userId)
         .in('status', ['joined', 'left'])
         .order('joined_at', { ascending: false })
-        .limit(10)
 
       if (participatedError) {
         console.error('❌ Error fetching participated games:', participatedError)
@@ -167,7 +179,6 @@ export const profileService = {
       // Combine and sort by date
       const allGames = [...organizedHistory, ...participatedHistory]
         .sort((a, b) => b.gameDate.getTime() - a.gameDate.getTime())
-        .slice(0, 10)
 
       console.log('✅ Loaded game history:', allGames.length, 'games')
       return allGames
@@ -180,6 +191,29 @@ export const profileService = {
   async getUserStats(userId: string) {
     try {
       console.log('📊 Calculating user stats for:', userId)
+
+      // Get player stats from player_stats table
+      const { data: playerStats, error: playerStatsError } = await supabase
+        .from('player_stats')
+        .select('*')
+        .eq('user_id', userId)
+        .single()
+
+      if (!playerStatsError && playerStats) {
+        console.log('✅ Found player stats in player_stats table:', playerStats)
+        return {
+          gamesOrganized: await this.getOrganizedGamesCount(userId),
+          gamesJoined: await this.getJoinedGamesCount(userId),
+          gamesCompleted: playerStats.games_completed,
+          gamesCancelled: 0, // Not stored in player_stats
+          upcomingGames: await this.getUpcomingGamesCount(userId),
+          pastGames: await this.getPastGamesCount(userId),
+          completionRate: playerStats.completion_rate
+        }
+      }
+
+      // If no player_stats record, calculate manually
+      console.log('📊 No player_stats record found, calculating manually')
 
       // Get organized games stats
       const { data: organizedStats, error: organizedError } = await supabase
@@ -251,6 +285,85 @@ export const profileService = {
         completionRate: 0
       }
     }
+  },
+
+  async getOrganizedGamesCount(userId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from('games')
+      .select('*', { count: 'exact', head: true })
+      .eq('organizer_id', userId)
+
+    if (error) {
+      console.error('Error getting organized games count:', error)
+      return 0
+    }
+
+    return count || 0
+  },
+
+  async getJoinedGamesCount(userId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from('game_participants')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('status', 'joined')
+
+    if (error) {
+      console.error('Error getting joined games count:', error)
+      return 0
+    }
+
+    return count || 0
+  },
+
+  async getUpcomingGamesCount(userId: string): Promise<number> {
+    const today = new Date().toISOString().split('T')[0]
+    
+    const { count, error } = await supabase
+      .from('game_participants')
+      .select(`
+        id,
+        games!inner (
+          id,
+          date,
+          status
+        )
+      `, { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('status', 'joined')
+      .eq('games.status', 'active')
+      .gte('games.date', today)
+
+    if (error) {
+      console.error('Error getting upcoming games count:', error)
+      return 0
+    }
+
+    return count || 0
+  },
+
+  async getPastGamesCount(userId: string): Promise<number> {
+    const today = new Date().toISOString().split('T')[0]
+    
+    const { count, error } = await supabase
+      .from('game_participants')
+      .select(`
+        id,
+        games!inner (
+          id,
+          date
+        )
+      `, { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('status', 'joined')
+      .lt('games.date', today)
+
+    if (error) {
+      console.error('Error getting past games count:', error)
+      return 0
+    }
+
+    return count || 0
   },
 
   async createProfile(userId: string, email: string, profileData: ProfileFormData): Promise<{ error: any }> {

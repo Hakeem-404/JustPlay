@@ -83,8 +83,57 @@ export const ratingService = {
         return { data: null, error: error.message }
       }
 
+      // If no stats exist yet, try to calculate them
+      if (!data) {
+        console.log('📊 No player stats found, triggering calculation')
+        
+        // Call RPC to calculate stats for this user
+        const { error: calcError } = await supabase.rpc('update_player_stats', {
+          user_id_param: userId
+        })
+        
+        if (calcError) {
+          console.error('❌ Error calculating player stats:', calcError)
+          return { data: null, error: calcError.message }
+        }
+        
+        // Try to fetch the newly calculated stats
+        const { data: freshData, error: freshError } = await supabase
+          .from('player_stats')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle()
+          
+        if (freshError) {
+          console.error('❌ Error loading fresh player stats:', freshError)
+          return { data: null, error: freshError.message }
+        }
+        
+        if (!freshData) {
+          console.warn('⚠️ Still no player stats after calculation')
+          return { data: null, error: 'No player stats available' }
+        }
+        
+        // Transform snake_case to camelCase
+        const transformedData: PlayerStats = {
+          id: freshData.id,
+          userId: freshData.user_id,
+          totalRatings: freshData.total_ratings,
+          averageRating: freshData.average_rating,
+          gamesCompleted: freshData.games_completed,
+          gamesNoShow: freshData.games_no_show,
+          completionRate: freshData.completion_rate,
+          positiveFeedbackCount: freshData.positive_feedback_count,
+          verifiedPlayer: freshData.verified_player,
+          updatedAt: freshData.updated_at
+        }
+        
+        console.log('✅ Loaded fresh player stats:', transformedData)
+        return { data: transformedData, error: null }
+      }
+
       // Transform snake_case to camelCase
-      const transformedData: PlayerStats | null = data ? {
+      const transformedData: PlayerStats = {
         id: data.id,
         userId: data.user_id,
         totalRatings: data.total_ratings,
@@ -95,7 +144,7 @@ export const ratingService = {
         positiveFeedbackCount: data.positive_feedback_count,
         verifiedPlayer: data.verified_player,
         updatedAt: data.updated_at
-      } : null
+      }
 
       console.log('✅ Loaded player stats:', transformedData)
       return { data: transformedData, error: null }
