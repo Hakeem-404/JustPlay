@@ -23,7 +23,7 @@ export function Skeleton({
     width: width || '100%',
     height: height || '1rem',
   };
-  
+   
   return (
     <div 
       className={`${baseClasses} ${animationClass} ${shapeClass} ${className}`}
