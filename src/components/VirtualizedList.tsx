@@ -25,7 +25,7 @@ export default function VirtualizedList<T>({
       </div>
     );
   };
-
+ 
   return (
     <div className={className}>
       <WindowScroller scrollElement={scrollElement || window as any}>
