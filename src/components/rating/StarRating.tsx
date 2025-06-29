@@ -10,7 +10,7 @@ interface StarRatingProps {
   showValue?: boolean
   className?: string
 }
-
+ 
 export default function StarRating({
   rating,
   maxRating = 5,
