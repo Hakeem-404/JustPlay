@@ -207,10 +207,10 @@ export default function Profile() {
 
   const getSkillLevelColor = (level: string) => {
     switch (level) {
-      case 'beginner': return 'badge-green'
-      case 'intermediate': return 'badge-yellow'
-      case 'advanced': return 'badge-red'
-      default: return 'badge-blue'
+      case 'beginner': return 'bg-green-100 text-green-700'
+      case 'intermediate': return 'bg-yellow-100 text-yellow-700'
+      case 'advanced': return 'bg-red-100 text-red-700'
+      default: return 'bg-gray-100 text-gray-700'
     }
   }
 
@@ -243,18 +243,18 @@ export default function Profile() {
 
   const getResultColor = (result: string) => {
     switch (result) {
-      case 'completed': return 'badge-green'
-      case 'cancelled': return 'badge-red'
-      case 'upcoming': return 'badge-blue'
-      default: return 'badge-blue'
+      case 'completed': return 'bg-green-100 text-green-700'
+      case 'cancelled': return 'bg-red-100 text-red-700'
+      case 'upcoming': return 'bg-blue-100 text-blue-700'
+      default: return 'bg-gray-100 text-gray-700'
     }
   }
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'organized': return 'badge-purple'
-      case 'joined': return 'badge-green'
-      default: return 'badge-blue'
+      case 'organized': return 'bg-purple-100 text-purple-700'
+      case 'joined': return 'bg-green-100 text-green-700'
+      default: return 'bg-gray-100 text-gray-700'
     }
   }
 
