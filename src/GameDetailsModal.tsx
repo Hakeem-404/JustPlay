@@ -851,6 +851,28 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                         </div>
                       )}
 
+                      {/* Mark Completed Button for Waitlist Participants */}
+                      {userParticipation === 'waitlist' && displayGame.status === 'active' && isGameInPast() && (
+                        <button
+                          onClick={handleCompleteGame}
+                          className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          <span>Mark Completed</span>
+                        </button>
+                      )}
+
+                      {/* Mark Completed Button for Joined Participants */}
+                      {userParticipation === 'joined' && displayGame.status === 'active' && isGameInPast() && (
+                        <button
+                          onClick={handleCompleteGame}
+                          className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          <span>Mark Completed</span>
+                        </button>
+                      )}
+
                       {joinedParticipants.length === 0 && waitlistParticipants.length === 0 && (
                         <div className="text-center py-8 text-gray-500">
                           <Users className="h-12 w-12 mx-auto mb-2 text-gray-300" />
