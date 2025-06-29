@@ -20,7 +20,8 @@ import {
   UserX,
   Check,
   X,
-  Loader2
+  Loader2,
+  Shield
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { profileService } from '../lib/profileService'
