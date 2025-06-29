@@ -404,9 +404,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
       return gameDate.toLocaleDateString('en-US', { 
         weekday: 'long',
         year: 'numeric',
-        month: 'long', 
-        day: 'numeric' 
-      })
+      const { error } = await gameService.updateGameStatus(currentGame.id, 'completed')
     }
   }
 

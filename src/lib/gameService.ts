@@ -329,6 +329,30 @@ export const gameService = {
     return { error }
   },
 
+  // Add a specific method for updating game status
+  async updateGameStatus(gameId: string, status: 'active' | 'cancelled' | 'completed'): Promise<{ error: any }> {
+    console.log('🔄 Updating game status:', gameId, status)
+    
+    // Convert camelCase to snake_case for database
+    const dbUpdates: any = {
+      status: status,
+      updated_at: new Date().toISOString()
+    }
+
+    const { error } = await supabase
+      .from('games')
+      .update(dbUpdates)
+      .eq('id', gameId)
+
+    if (error) {
+      console.error('❌ Error updating game status:', error)
+    } else {
+      console.log('✅ Game status updated successfully to:', status)
+    }
+
+    return { error }
+  },
+
   async deleteGame(gameId: string): Promise<{ error: any }> {
     console.log('🗑️ Deleting game:', gameId)
     
