@@ -401,7 +401,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
     } else if (gameDate.toDateString() === tomorrow.toDateString()) {
       return 'Tomorrow'
     } else {
-      return gameDate.toLocaleDateString('en-US', { 
+      console.log('🏁 GameDetailsModal: User attempting to mark game as completed:', currentGame.id)
         weekday: 'long',
         year: 'numeric',
         month: 'long', 
