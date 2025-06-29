@@ -8,7 +8,7 @@ interface PlayerRatingBadgeProps {
   showDetails?: boolean
   className?: string
 }
-
+ 
 export default function PlayerRatingBadge({
   stats,
   size = 'md',
