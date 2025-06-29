@@ -314,6 +314,7 @@ export const gameService = {
     if (updates.skillLevel) dbUpdates.skill_level = updates.skillLevel
     if (updates.description) dbUpdates.description = updates.description
     if (updates.isPrivate !== undefined) dbUpdates.is_private = updates.isPrivate
+   if (updates.status) dbUpdates.status = updates.status
 
     const { error } = await supabase
       .from('games')

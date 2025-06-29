@@ -313,9 +313,9 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
 
     try {
       console.log('🚫 GameDetailsModal: User attempting to cancel game:', currentGame.id)
-      
-      const { data, error } = await gameParticipantService.cancelGame(currentGame.id)
-      
+     const { error } = await gameService.updateGame(currentGame.id, {
+       status: 'completed' as any
+     })
       if (error) {
         console.error('❌ GameDetailsModal: Cancel game error:', error)
         setError(error)
