@@ -26,6 +26,9 @@ import { gameService } from '../lib/gameService'
 import { chatService } from '../lib/chatService'
 import GameChat from './chat/GameChat'
 import { Link } from 'react-router-dom'
+import GameRatingModal from './rating/GameRatingModal'
+import { ratingService } from '../lib/ratingService'
+import PlayerRatingBadge from './rating/PlayerRatingBadge'
 
 interface GameDetailsModalProps {
   game: Game | null
@@ -59,6 +62,11 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
   // Chat state
   const [activeTab, setActiveTab] = useState<'info' | 'chat'>('info')
   const [unreadCount, setUnreadCount] = useState(0)
+  
+  // Rating state
+  const [showRatingModal, setShowRatingModal] = useState(false)
+  const [canRateGame, setCanRateGame] = useState(false)
+  const [hasRatedGame, setHasRatedGame] = useState(false)
 
   // Update current game when prop changes
   useEffect(() => {
@@ -70,6 +78,9 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
       if (user) {
         loadUnreadCount(game.id)
       }
+      
+      // Check if user can rate this game
+      checkRatingStatus(game)
     }
   }, [game, user])
 
@@ -130,6 +141,9 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
         if (onGameUpdate) {
           onGameUpdate(updatedGame)
         }
+        
+        // Check if user can rate this game (status might have changed)
+        checkRatingStatus(updatedGame)
       }
     )
 
@@ -169,6 +183,26 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
       setActiveTab('info') // Reset to info tab
     }
   }, [isOpen])
+
+  const checkRatingStatus = async (game: Game) => {
+    if (!user || !game) return
+    
+    // Can only rate completed games
+    const isCompleted = game.status === 'completed'
+    
+    // Can only rate games user participated in (not as organizer)
+    const isParticipant = game.organizerId !== user.id
+    
+    setCanRateGame(isCompleted && isParticipant)
+    
+    // Check if user has already rated this game
+    if (isCompleted && isParticipant) {
+      const { data: hasRated } = await ratingService.hasUserRatedGame(game.id)
+      setHasRatedGame(hasRated)
+    } else {
+      setHasRatedGame(false)
+    }
+  }
 
   const loadUnreadCount = async (gameId: string) => {
     try {
@@ -348,6 +382,50 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
     }
   }
 
+  const handleCompleteGame = async () => {
+    if (!currentGame || !user) return
+
+    setActionLoading(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      console.log('🏁 GameDetailsModal: User attempting to mark game as completed:', currentGame.id)
+      
+      // Update game status to completed
+      const { error } = await gameService.updateGame(currentGame.id, {
+        status: 'completed' as any
+      })
+      
+      if (error) {
+        console.error('❌ GameDetailsModal: Complete game error:', error)
+        setError('Failed to mark game as completed')
+      } else {
+        console.log('✅ GameDetailsModal: Successfully marked game as completed')
+        setSuccess('Game marked as completed')
+        
+        // Update game status
+        const updatedGame = {
+          ...currentGame,
+          status: 'completed' as const
+        }
+        setCurrentGame(updatedGame)
+        
+        if (onGameUpdate) {
+          onGameUpdate(updatedGame)
+        }
+        
+        // Show success message for a few seconds
+        setTimeout(() => setSuccess(''), 3000)
+      }
+    } catch (err) {
+      setError('An unexpected error occurred')
+      console.error('💥 GameDetailsModal: Error completing game:', err)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const handleShare = async () => {
     if (!currentGame) return
 
@@ -388,6 +466,20 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
     } catch (err) {
       setError('Failed to copy game details')
     }
+  }
+
+  const handleOpenRatingModal = () => {
+    setShowRatingModal(true)
+  }
+
+  const handleRatingModalClose = () => {
+    setShowRatingModal(false)
+  }
+
+  const handleRatingsSubmitted = () => {
+    setHasRatedGame(true)
+    // Refresh participants to show updated ratings
+    loadParticipants()
   }
 
   const formatDate = (date: string) => {
@@ -484,6 +576,11 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                 {displayGame.status === 'cancelled' && (
                   <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
                     Cancelled
+                  </span>
+                )}
+                {displayGame.status === 'completed' && (
+                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                    Completed
                   </span>
                 )}
               </div>
@@ -618,6 +715,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                         <p className="font-medium text-gray-900">Status</p>
                         <p className="text-gray-600">
                           {displayGame.status === 'cancelled' ? 'Cancelled' :
+                           displayGame.status === 'completed' ? 'Completed' :
                            isGameInPast() ? 'Past Game' : 
                            displayGame.status.charAt(0).toUpperCase() + displayGame.status.slice(1)}
                         </p>
@@ -855,14 +953,27 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                           <Crown className="h-4 w-4" />
                           <span>Your Game</span>
                         </button>
-                        {displayGame.status === 'active' && !isGameInPast() && (
-                          <button
-                            onClick={() => setShowCancelConfirm(true)}
-                            className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
-                          >
-                            <Ban className="h-4 w-4" />
-                            <span>Cancel Game</span>
-                          </button>
+                        
+                        {displayGame.status === 'active' && (
+                          <>
+                            {isGameInPast() ? (
+                              <button
+                                onClick={handleCompleteGame}
+                                className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                                <span>Mark Completed</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setShowCancelConfirm(true)}
+                                className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
+                              >
+                                <Ban className="h-4 w-4" />
+                                <span>Cancel Game</span>
+                              </button>
+                            )}
+                          </>
                         )}
                       </>
                     )}
@@ -913,8 +1024,30 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                             className="flex-1 bg-gray-300 text-gray-500 py-3 px-4 rounded-lg font-medium cursor-not-allowed"
                           >
                             {displayGame.status === 'cancelled' ? 'Game Cancelled' :
+                             displayGame.status === 'completed' ? 'Game Completed' :
                              isGameInPast() ? 'Game Ended' : 
                              displayGame.status !== 'active' ? 'Game Inactive' : 'Cannot Join'}
+                          </button>
+                        )}
+                        
+                        {/* Rate Players Button */}
+                        {canRateGame && !hasRatedGame && (
+                          <button
+                            onClick={handleOpenRatingModal}
+                            className="flex-1 bg-yellow-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-yellow-700 transition-colors flex items-center justify-center space-x-2"
+                          >
+                            <Star className="h-4 w-4" />
+                            <span>Rate Players</span>
+                          </button>
+                        )}
+                        
+                        {canRateGame && hasRatedGame && (
+                          <button
+                            disabled
+                            className="flex-1 bg-gray-100 text-gray-600 py-3 px-4 rounded-lg font-medium cursor-not-allowed flex items-center justify-center space-x-2"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            <span>Players Rated</span>
                           </button>
                         )}
                       </>
@@ -926,6 +1059,18 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
           </div>
         )}
       </div>
+      
+      {/* Rating Modal */}
+      {currentGame && (
+        <GameRatingModal
+          gameId={currentGame.id}
+          gameSport={currentGame.sport}
+          gameDate={currentGame.date}
+          isOpen={showRatingModal}
+          onClose={handleRatingModalClose}
+          onRatingsSubmitted={handleRatingsSubmitted}
+        />
+      )}
     </div>
   )
 }
