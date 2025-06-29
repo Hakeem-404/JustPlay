@@ -52,6 +52,7 @@ export interface GameFormData {
   skillLevel: 'beginner' | 'intermediate' | 'advanced' | 'any'
   description: string
   isPrivate: boolean
+  status?: 'active' | 'cancelled' | 'completed'
 }
 
 export interface MapFilters {

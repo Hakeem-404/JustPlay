@@ -295,7 +295,7 @@ export const gameService = {
     return { data: transformedData, error: null }
   },
 
-  async updateGame(gameId: string, updates: Partial<GameFormData>): Promise<{ error: any }> {
+  async updateGame(gameId: string, updates: Partial<GameFormData>): Promise<{ data?: any; error: any }> {
     console.log('🔄 Updating game:', gameId, updates)
     
     // Convert camelCase to snake_case for database
@@ -314,19 +314,21 @@ export const gameService = {
     if (updates.skillLevel) dbUpdates.skill_level = updates.skillLevel
     if (updates.description) dbUpdates.description = updates.description
     if (updates.isPrivate !== undefined) dbUpdates.is_private = updates.isPrivate
+    if (updates.status) dbUpdates.status = updates.status
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('games')
       .update(dbUpdates)
       .eq('id', gameId)
+      .select()
 
     if (error) {
       console.error('❌ Error updating game:', error)
+      return { error }
     } else {
-      console.log('✅ Game updated successfully')
+      console.log('✅ Game updated successfully:', data)
+      return { data, error: null }
     }
-
-    return { error }
   },
 
   async deleteGame(gameId: string): Promise<{ error: any }> {
@@ -459,4 +461,4 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
     Math.sin(dLon/2) * Math.sin(dLon/2)
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
   return R * c
-} 
+}

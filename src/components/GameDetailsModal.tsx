@@ -393,8 +393,8 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
       console.log('🏁 GameDetailsModal: User attempting to mark game as completed:', currentGame.id)
       
       // Update game status to completed
-      const { error } = await gameService.updateGame(currentGame.id, {
-        status: 'completed' as any
+      const { data, error } = await gameService.updateGame(currentGame.id, {
+        status: 'completed'
       })
       
       if (error) {
@@ -1095,4 +1095,4 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
       )}
     </div>
   )
-} 
+}
