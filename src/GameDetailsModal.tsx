@@ -763,17 +763,6 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                         <ExternalLink className="h-4 w-4" />
                         <span>Open in Maps</span>
                       </button>
-                      
-                      {/* Mark Completed Button for non-organizers if game is in the past */}
-                      {userParticipation === 'none' && displayGame.status === 'active' && isGameInPast() && (
-                        <button
-                          onClick={handleCompleteGame}
-                          className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                          <span>Mark Completed</span>
-                        </button>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -990,15 +979,13 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                         {displayGame.status === 'active' && (
                           <>
                             {isGameInPast() ? (
-                              <>
-                                <button
-                                  onClick={handleCompleteGame}
-                                  className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
-                                >
-                                  <CheckCircle className="h-4 w-4" />
-                                  <span>Mark Completed</span>
-                                </button>
-                              </>
+                              <button
+                                onClick={handleCompleteGame}
+                                className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                                <span>Mark Completed</span>
+                              </button>
                             ) : (
                               <button
                                 onClick={() => setShowCancelConfirm(true)}
