@@ -13,6 +13,7 @@ interface GameRatingModalProps {
   onRatingsSubmitted?: () => void
 }
 
+
 interface ParticipantRating {
   user_id: string
   name: string
