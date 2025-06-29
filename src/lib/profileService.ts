@@ -54,12 +54,12 @@ export const profileService = {
         console.error('❌ Error fetching participated games count:', participatedError)
       }
 
-      // Get average rating - use maybeSingle() to handle cases where no player_stats record exists
+      // Get average rating
       const { data: playerStats, error: playerStatsError } = await supabase
         .from('player_stats')
         .select('average_rating')
         .eq('user_id', userId)
-        .maybeSingle()
+        .single()
 
       let averageRating = profile.average_rating
       if (!playerStatsError && playerStats) {
@@ -192,12 +192,12 @@ export const profileService = {
     try {
       console.log('📊 Calculating user stats for:', userId)
 
-      // Get player stats from player_stats table - use maybeSingle() to handle missing records
+      // Get player stats from player_stats table
       const { data: playerStats, error: playerStatsError } = await supabase
         .from('player_stats')
         .select('*')
         .eq('user_id', userId)
-        .maybeSingle()
+        .single()
 
       if (!playerStatsError && playerStats) {
         console.log('✅ Found player stats in player_stats table:', playerStats)
