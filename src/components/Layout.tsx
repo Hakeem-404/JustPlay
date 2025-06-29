@@ -193,7 +193,7 @@ export default function Layout({ children }: LayoutProps) {
                       <>
                         {/* Backdrop overlay to handle clicks outside */}
                         <div
-                          className="fixed inset-0 z-[999999999999999]"
+                          className="fixed inset-0 z-[10000]"
                           onClick={() => setIsUserMenuOpen(false)}
                         />
                         
