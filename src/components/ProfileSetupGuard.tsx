@@ -16,7 +16,7 @@ export default function ProfileSetupGuard({ children }: ProfileSetupGuardProps) 
   if (location.pathname === '/profile/setup') {
     return <>{children}</>
   }
-
+  
   if (authLoading || profileLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
