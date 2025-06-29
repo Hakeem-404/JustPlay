@@ -22,6 +22,7 @@ import NotificationBadge from './notifications/NotificationBadge'
 import OfflineBanner from './OfflineBanner'
 import Footer from './Footer'
 import { adminService } from '../lib/adminService'
+import BoltBadge from './BoltBadge'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -446,6 +447,9 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Offline Banner */}
       <OfflineBanner />
+
+      {/* Bolt Badge */}
+      <BoltBadge />
     </div>
   )
 }

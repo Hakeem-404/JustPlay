@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import Footer from '../../../components/Footer';
+import BoltBadge from '../../../components/BoltBadge';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -186,6 +187,9 @@ export default function AdminLayout({ children, currentPage }: AdminLayoutProps)
         
         {/* Footer */}
         <Footer />
+
+        {/* Bolt Badge */}
+        <BoltBadge />
       </div>
     </div>
   );
