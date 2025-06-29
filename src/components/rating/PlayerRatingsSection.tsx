@@ -7,7 +7,7 @@ interface PlayerRatingsSectionProps {
   userId: string
   isOwnProfile?: boolean
 }
-
+ 
 export default function PlayerRatingsSection({ userId, isOwnProfile = false }: PlayerRatingsSectionProps) {
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [ratings, setRatings] = useState<PlayerRating[]>([])
