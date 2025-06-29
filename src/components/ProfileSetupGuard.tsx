@@ -27,6 +27,7 @@ export default function ProfileSetupGuard({ children }: ProfileSetupGuardProps) 
       </div>
     )
   }
+  
 
   if (user && needsProfileSetup) {
     return <Navigate to="/profile/setup" replace />
