@@ -62,10 +62,11 @@ interface GameHistory {
   players?: string
   organizerName?: string
   participationStatus?: string
+  gameDate: Date
 }
 
 export default function Profile() {
-  const { profile } = useProfile()
+  const { profile, refreshProfile } = useProfile()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [userStats, setUserStats] = useState<UserStats | null>(null)
@@ -96,6 +97,9 @@ export default function Profile() {
 
     try {
       console.log('📊 Loading user profile data for:', user.id)
+
+      // Trigger stats update on the server first
+      await ratingService.updateUserStats(user.id)
 
       // Load user stats and game history in parallel
       const [stats, history] = await Promise.all([
@@ -266,7 +270,7 @@ export default function Profile() {
           <div className="flex flex-col lg:flex-row items-start lg:items-center space-y-6 lg:space-y-0 lg:space-x-8">
             {/* Avatar */}
             <div className="flex-shrink-0">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center text-white text-2xl sm:text-3xl font-bold">
+              <div className="avatar avatar-lg bg-gradient-to-br from-blue-500 to-green-500">
                 {profile.name.charAt(0).toUpperCase()}
               </div>
             </div>
@@ -282,14 +286,15 @@ export default function Profile() {
                     <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
                     <span className="text-sm sm:text-base truncate">{profile.location}</span>
                   </div>
-                  <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getSkillLevelColor(profile.skill_level)}`}>
+                  <span className={`badge ${getSkillLevelColor(profile.skill_level)}`}>
                     {getSkillLevelLabel(profile.skill_level)}
                   </span>
                 </div>
                 <div className="flex-shrink-0">
                   <Link
                     to="/profile/edit"
-                    className="w-full sm:w-auto bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                    className="btn btn-primary flex items-center justify-center space-x-2"
+                    aria-label="Edit your profile"
                   >
                     <Edit3 className="h-4 w-4" />
                     <span>Edit Profile</span>
@@ -313,8 +318,8 @@ export default function Profile() {
           {/* Left Column - Fixed overflow issues */}
           <div className="xl:col-span-2 space-y-6 lg:space-y-8 min-w-0">
             {/* Preferred Sports - Fixed grid overflow */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 overflow-hidden">
-              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+            <div className="card overflow-hidden">
+              <h2 className="section-title">
                 <Target className="h-5 w-5 mr-2 text-blue-600 flex-shrink-0" />
                 <span className="truncate">Preferred Sports</span>
               </h2>
@@ -334,8 +339,8 @@ export default function Profile() {
             </div>
 
             {/* Recent Games - Fixed overflow and improved responsive design */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 overflow-hidden">
-              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+            <div className="card overflow-hidden">
+              <h2 className="section-title">
                 <Calendar className="h-5 w-5 mr-2 text-green-600 flex-shrink-0" />
                 <span className="truncate">Recent Games</span>
               </h2>
@@ -352,13 +357,13 @@ export default function Profile() {
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <Link
                       to="/dashboard"
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors text-center"
+                      className="btn btn-primary text-center"
                     >
                       Find Games
                     </Link>
                     <Link
                       to="/create-game"
-                      className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors text-center"
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors text-center focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                     >
                       Create Game
                     </Link>
@@ -439,13 +444,13 @@ export default function Profile() {
                         <div className="flex flex-col sm:items-end space-y-2 flex-shrink-0">
                           <div className="flex flex-wrap gap-2">
                             <span 
-                              className={`inline-flex items-center px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium ${getTypeColor(game.type)}`}
+                              className={`badge ${getTypeColor(game.type)}`}
                               aria-label={`Game type: ${game.type}`}
                             >
                               {game.type === 'organized' ? 'Organized' : 'Joined'}
                             </span>
                             <span 
-                              className={`inline-flex items-center px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium ${getResultColor(game.result)}`}
+                              className={`badge ${getResultColor(game.result)}`}
                               aria-label={`Game status: ${game.result}`}
                             >
                               {game.result.charAt(0).toUpperCase() + game.result.slice(1)}
@@ -455,7 +460,7 @@ export default function Profile() {
                           {/* Action Buttons - Shows on Hover */}
                           <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-300 flex space-x-2">
                             <button
-                              className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center space-x-2"
+                              className="btn btn-primary text-xs sm:text-sm flex items-center space-x-2"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleGameClick(game)
@@ -514,8 +519,8 @@ export default function Profile() {
           {/* Right Column - Stats - Fixed overflow and improved responsive design */}
           <div className="space-y-6 min-w-0">
             {/* Stats Card - Fixed overflow */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 overflow-hidden">
-              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+            <div className="card overflow-hidden">
+              <h2 className="section-title">
                 <Trophy className="h-5 w-5 mr-2 text-yellow-600 flex-shrink-0" />
                 <span className="truncate">Your Stats</span>
               </h2>
@@ -577,12 +582,12 @@ export default function Profile() {
             </div>
 
             {/* Quick Actions - Fixed responsive design */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 overflow-hidden">
+            <div className="card overflow-hidden">
               <h2 className="text-xl font-bold text-gray-900 mb-4 truncate">Quick Actions</h2>
               <div className="space-y-3">
                 <Link
                   to="/create-game"
-                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                  className="w-full btn btn-primary flex items-center justify-center space-x-2"
                 >
                   <Calendar className="h-4 w-4 flex-shrink-0" />
                   <span>Create New Game</span>
@@ -590,7 +595,7 @@ export default function Profile() {
                 
                 <Link
                   to="/dashboard"
-                  className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-2"
+                  className="w-full btn btn-secondary flex items-center justify-center space-x-2"
                 >
                   <Users className="h-4 w-4 flex-shrink-0" />
                   <span>Find Games</span>

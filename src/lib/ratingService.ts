@@ -229,5 +229,27 @@ export const ratingService = {
       console.error('💥 Unexpected error checking rating status:', err)
       return { data: false, error: 'An unexpected error occurred' }
     }
+  },
+
+  // New method to manually trigger stats update
+  async updateUserStats(userId: string): Promise<{ success: boolean; error: string | null }> {
+    try {
+      console.log('📊 Manually updating stats for user:', userId)
+      
+      const { error } = await supabase.rpc('update_player_stats', {
+        user_id_param: userId
+      })
+
+      if (error) {
+        console.error('❌ Error updating player stats:', error)
+        return { success: false, error: error.message }
+      }
+
+      console.log('✅ Successfully updated player stats')
+      return { success: true, error: null }
+    } catch (err) {
+      console.error('💥 Unexpected error updating player stats:', err)
+      return { success: false, error: 'An unexpected error occurred' }
+    }
   }
 }
