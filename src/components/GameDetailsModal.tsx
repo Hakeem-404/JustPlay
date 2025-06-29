@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { 
   X, 
   MapPin, 
@@ -67,6 +67,10 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
   const [showRatingModal, setShowRatingModal] = useState(false)
   const [canRateGame, setCanRateGame] = useState(false)
   const [hasRatedGame, setHasRatedGame] = useState(false)
+
+  // Modal ref for focus trapping
+  const modalRef = useRef<HTMLDivElement>(null)
+  const initialFocusRef = useRef<HTMLButtonElement>(null)
 
   // Update current game when prop changes
   useEffect(() => {
@@ -162,14 +166,45 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
       }
     }
 
+    // Focus trap
+    const handleTabKey = (e: KeyboardEvent) => {
+      if (e.key === 'Tab' && isOpen && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+        
+        const firstElement = focusableElements[0] as HTMLElement
+        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement
+        
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault()
+          lastElement.focus()
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault()
+          firstElement.focus()
+        }
+      }
+    }
+
     if (isOpen) {
       document.addEventListener('keydown', handleEscape)
+      document.addEventListener('keydown', handleTabKey)
       document.body.style.overflow = 'hidden'
+      document.body.classList.add('modal-open')
+      
+      // Focus first interactive element
+      setTimeout(() => {
+        if (initialFocusRef.current) {
+          initialFocusRef.current.focus()
+        }
+      }, 100)
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape)
+      document.removeEventListener('keydown', handleTabKey)
       document.body.style.overflow = 'unset'
+      document.body.classList.remove('modal-open')
     }
   }, [isOpen, onClose])
 
@@ -555,37 +590,45 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
   console.log('🎮 GameDetailsModal: Rendering with game:', displayGame.id, 'Players:', displayGame.currentPlayers, '/', displayGame.maxPlayers)
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[var(--z-modal-backdrop)] p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="game-details-title"
+    >
       {/* Overlay click to close */}
       <div 
         className="absolute inset-0" 
         onClick={onClose}
-        aria-label="Close modal"
+        aria-hidden="true"
       />
       
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden relative z-[10000] flex flex-col">
+      <div 
+        ref={modalRef}
+        className="modal-content w-full max-w-4xl max-h-[90vh] overflow-hidden relative z-[var(--z-modal)] flex flex-col"
+      >
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-2xl z-[10001]">
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-2xl z-[calc(var(--z-modal)+1)]">
           <div className="flex items-start justify-between">
             <div className="flex-1 pr-4">
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              <h1 id="game-details-title" className="text-2xl font-bold text-gray-900 mb-2">
                 {displayGame.title || displayGame.sport}
               </h1>
-              <div className="flex items-center space-x-4 text-sm text-gray-600">
+              <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
                 <div className="flex items-center">
                   <MapPin className="h-4 w-4 mr-1" />
                   <span className="truncate">{displayGame.location}</span>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSkillLevelColor(displayGame.skillLevel)}`}>
+                <span className={`badge ${getSkillLevelColor(displayGame.skillLevel)}`}>
                   {displayGame.skillLevel === 'any' ? 'Any Level' : displayGame.skillLevel.charAt(0).toUpperCase() + displayGame.skillLevel.slice(1)}
                 </span>
                 {displayGame.status === 'cancelled' && (
-                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                  <span className="badge badge-red">
                     Cancelled
                   </span>
                 )}
                 {displayGame.status === 'completed' && (
-                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  <span className="badge badge-green">
                     Completed
                   </span>
                 )}
@@ -594,15 +637,18 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
             <div className="flex items-center space-x-2">
               <button
                 onClick={handleShare}
-                className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100"
+                className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 title="Share game"
+                aria-label="Share game details"
               >
                 <Share2 className="h-5 w-5" />
               </button>
               <button
+                ref={initialFocusRef}
                 onClick={onClose}
-                className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100"
+                className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 title="Close modal"
+                aria-label="Close game details"
               >
                 <X className="h-6 w-6" />
               </button>
@@ -618,6 +664,9 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
+              aria-selected={activeTab === 'info'}
+              aria-controls="game-info-panel"
+              id="game-info-tab"
             >
               <Info className="h-4 w-4" />
               <span>Game Info</span>
@@ -632,11 +681,14 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
+              aria-selected={activeTab === 'chat'}
+              aria-controls="game-chat-panel"
+              id="game-chat-tab"
             >
               <MessageCircle className="h-4 w-4" />
               <span>Chat</span>
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium" aria-label={`${unreadCount} unread messages`}>
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
@@ -647,18 +699,23 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
         {/* Content */}
         <div className="flex-1 overflow-hidden">
           {activeTab === 'info' ? (
-            <div className="overflow-y-auto max-h-[calc(90vh-200px)]">
+            <div 
+              className="overflow-y-auto max-h-[calc(90vh-200px)]"
+              id="game-info-panel"
+              role="tabpanel"
+              aria-labelledby="game-info-tab"
+            >
               <div className="p-6 space-y-6">
                 {/* Error/Success Messages */}
                 {error && (
-                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2" role="alert">
                     <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
                     <span className="text-red-700 text-sm">{error}</span>
                   </div>
                 )}
 
                 {success && (
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2">
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2" role="status">
                     <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
                     <span className="text-green-700 text-sm">{success}</span>
                   </div>
@@ -668,7 +725,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div className="flex items-center space-x-3">
-                      <Calendar className="h-5 w-5 text-blue-600" />
+                      <Calendar className="h-5 w-5 text-blue-600 flex-shrink-0" />
                       <div>
                         <p className="font-medium text-gray-900">Date & Time</p>
                         <p className="text-gray-600">{formatDate(displayGame.date)} at {displayGame.time}</p>
@@ -676,7 +733,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                     </div>
 
                     <div className="flex items-center space-x-3">
-                      <Users className="h-5 w-5 text-green-600" />
+                      <Users className="h-5 w-5 text-green-600 flex-shrink-0" />
                       <div>
                         <p className="font-medium text-gray-900">Players</p>
                         <p className="text-gray-600">
@@ -690,12 +747,12 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                     </div>
 
                     <div className="flex items-center space-x-3">
-                      <User className="h-5 w-5 text-purple-600" />
+                      <User className="h-5 w-5 text-purple-600 flex-shrink-0" />
                       <div>
                         <p className="font-medium text-gray-900">Organizer</p>
                         <Link
                           to={`/profile/${displayGame.organizerId}`}
-                          className="text-blue-600 hover:text-blue-700 hover:underline"
+                          className="text-blue-600 hover:text-blue-700 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                           onClick={(e) => e.stopPropagation()}
                         >
                           {displayGame.organizerName}
@@ -706,7 +763,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
 
                   <div className="space-y-4">
                     <div className="flex items-center space-x-3">
-                      <Target className="h-5 w-5 text-orange-600" />
+                      <Target className="h-5 w-5 text-orange-600 flex-shrink-0" />
                       <div>
                         <p className="font-medium text-gray-900">Skill Level</p>
                         <p className="text-gray-600">
@@ -716,7 +773,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                     </div>
 
                     <div className="flex items-center space-x-3">
-                      <Clock className="h-5 w-5 text-gray-600" />
+                      <Clock className="h-5 w-5 text-gray-600 flex-shrink-0" />
                       <div>
                         <p className="font-medium text-gray-900">Status</p>
                         <p className="text-gray-600">
@@ -730,7 +787,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
 
                     {displayGame.isPrivate && (
                       <div className="flex items-center space-x-3">
-                        <AlertCircle className="h-5 w-5 text-yellow-600" />
+                        <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
                         <div>
                           <p className="font-medium text-gray-900">Privacy</p>
                           <p className="text-gray-600">Private Game</p>
@@ -762,9 +819,10 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                       <button
                         onClick={() => {
                           const url = `https://www.google.com/maps?q=${displayGame.latitude},${displayGame.longitude}`
-                          window.open(url, '_blank')
+                          window.open(url, '_blank', 'noopener,noreferrer')
                         }}
-                        className="text-blue-600 hover:text-blue-700 flex items-center space-x-1 text-sm ml-4"
+                        className="text-blue-600 hover:text-blue-700 flex items-center space-x-1 text-sm ml-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        aria-label="Open location in Google Maps"
                       >
                         <ExternalLink className="h-4 w-4" />
                         <span>Open in Maps</span>
@@ -798,14 +856,14 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {joinedParticipants.map((participant) => (
                               <div key={participant.participant_id} className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
-                                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center text-white font-bold">
+                                <div className="avatar avatar-md bg-gradient-to-br from-blue-500 to-green-500">
                                   {participant.name.charAt(0).toUpperCase()}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center space-x-2">
                                     <Link
                                       to={`/profile/${participant.user_id}`}
-                                      className="font-medium text-gray-900 truncate hover:text-blue-600 hover:underline"
+                                      className="font-medium text-gray-900 truncate hover:text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                                       onClick={(e) => e.stopPropagation()}
                                     >
                                       {participant.name}
@@ -834,13 +892,13 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {waitlistParticipants.map((participant, index) => (
                               <div key={participant.participant_id} className="flex items-center space-x-3 p-3 bg-yellow-50 rounded-lg">
-                                <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-full flex items-center justify-center text-white font-bold">
+                                <div className="avatar avatar-md bg-gradient-to-br from-yellow-500 to-orange-500">
                                   {participant.name.charAt(0).toUpperCase()}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <Link
                                     to={`/profile/${participant.user_id}`}
-                                    className="font-medium text-gray-900 truncate hover:text-blue-600 hover:underline block"
+                                    className="font-medium text-gray-900 truncate hover:text-blue-600 hover:underline block focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     {participant.name}
@@ -869,17 +927,24 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
               </div>
             </div>
           ) : (
-            <GameChat 
-              game={displayGame} 
-              isVisible={activeTab === 'chat'} 
-              onUnreadCountChange={setUnreadCount}
-            />
+            <div
+              id="game-chat-panel"
+              role="tabpanel"
+              aria-labelledby="game-chat-tab"
+              className="h-full"
+            >
+              <GameChat 
+                game={displayGame} 
+                isVisible={activeTab === 'chat'} 
+                onUnreadCountChange={setUnreadCount}
+              />
+            </div>
           )}
         </div>
 
         {/* Footer Actions - Only show for info tab */}
         {activeTab === 'info' && (
-          <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 rounded-b-2xl z-[10001]">
+          <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 rounded-b-2xl z-[calc(var(--z-modal)+1)]">
             {showLeaveConfirm ? (
               <div className="space-y-4">
                 <div className="text-center">
@@ -889,14 +954,15 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                 <div className="flex space-x-3">
                   <button
                     onClick={() => setShowLeaveConfirm(false)}
-                    className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                    className="flex-1 btn btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleLeaveGame}
                     disabled={actionLoading}
-                    className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+                    className="flex-1 btn btn-danger flex items-center justify-center space-x-2"
+                    aria-busy={actionLoading}
                   >
                     {actionLoading ? (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -918,14 +984,15 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                 <div className="flex space-x-3">
                   <button
                     onClick={() => setShowCancelConfirm(false)}
-                    className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                    className="flex-1 btn btn-secondary"
                   >
                     Keep Game
                   </button>
                   <button
                     onClick={handleCancelGame}
                     disabled={actionLoading}
-                    className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+                    className="flex-1 btn btn-danger flex items-center justify-center space-x-2"
+                    aria-busy={actionLoading}
                   >
                     {actionLoading ? (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -939,10 +1006,10 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                 </div>
               </div>
             ) : (
-              <div className="flex space-x-3">
+              <div className="flex flex-wrap gap-3">
                 <button
                   onClick={onClose}
-                  className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                  className="flex-1 btn btn-secondary min-w-[120px]"
                 >
                   Close
                 </button>
@@ -954,7 +1021,8 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                       <>
                         <button
                           disabled
-                          className="flex-1 bg-blue-100 text-blue-700 py-3 px-4 rounded-lg font-medium cursor-default flex items-center justify-center space-x-2"
+                          className="flex-1 bg-blue-100 text-blue-700 py-3 px-4 rounded-lg font-medium cursor-default flex items-center justify-center space-x-2 min-w-[120px]"
+                          aria-label="You are the organizer of this game"
                         >
                           <Crown className="h-4 w-4" />
                           <span>Your Game</span>
@@ -965,7 +1033,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                             {isGameInPast() ? (
                               <button
                                 onClick={handleCompleteGame}
-                                className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
+                                className="flex-1 btn bg-green-600 text-white hover:bg-green-700 flex items-center justify-center space-x-2 min-w-[120px]"
                               >
                                 <CheckCircle className="h-4 w-4" />
                                 <span>Mark Completed</span>
@@ -973,7 +1041,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                             ) : (
                               <button
                                 onClick={() => setShowCancelConfirm(true)}
-                                className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
+                                className="flex-1 btn btn-danger flex items-center justify-center space-x-2 min-w-[120px]"
                               >
                                 <Ban className="h-4 w-4" />
                                 <span>Cancel Game</span>
@@ -991,7 +1059,8 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                           <button
                             onClick={handleJoinGame}
                             disabled={actionLoading}
-                            className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+                            className="flex-1 btn btn-primary flex items-center justify-center space-x-2 min-w-[120px]"
+                            aria-busy={actionLoading}
                           >
                             {actionLoading ? (
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -1007,7 +1076,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                         {userParticipation === 'joined' && (
                           <button
                             onClick={() => setShowLeaveConfirm(true)}
-                            className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
+                            className="flex-1 btn btn-danger flex items-center justify-center space-x-2 min-w-[120px]"
                           >
                             <UserMinus className="h-4 w-4" />
                             <span>Leave Game</span>
@@ -1017,7 +1086,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                         {userParticipation === 'waitlist' && (
                           <button
                             onClick={() => setShowLeaveConfirm(true)}
-                            className="flex-1 bg-yellow-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-yellow-700 transition-colors flex items-center justify-center space-x-2"
+                            className="flex-1 bg-yellow-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-yellow-700 transition-colors flex items-center justify-center space-x-2 min-w-[120px] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
                           >
                             <UserMinus className="h-4 w-4" />
                             <span>Leave Waitlist</span>
@@ -1027,7 +1096,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                         {!canJoinGame() && userParticipation === 'none' && (
                           <button
                             disabled
-                            className="flex-1 bg-gray-300 text-gray-500 py-3 px-4 rounded-lg font-medium cursor-not-allowed"
+                            className="flex-1 bg-gray-300 text-gray-500 py-3 px-4 rounded-lg font-medium cursor-not-allowed min-w-[120px]"
                           >
                             {displayGame.status === 'cancelled' ? 'Game Cancelled' :
                              displayGame.status === 'completed' ? 'Game Completed' :
@@ -1040,7 +1109,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                         {canRateGame && !hasRatedGame && (
                           <button
                             onClick={handleOpenRatingModal}
-                            className="flex-1 bg-yellow-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-yellow-700 transition-colors flex items-center justify-center space-x-2"
+                            className="flex-1 bg-yellow-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-yellow-700 transition-colors flex items-center justify-center space-x-2 min-w-[120px] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
                           >
                             <Star className="h-4 w-4" />
                             <span>Rate Players</span>
@@ -1050,7 +1119,7 @@ export default function GameDetailsModal({ game, isOpen, onClose, onGameUpdate }
                         {canRateGame && hasRatedGame && (
                           <button
                             disabled
-                            className="flex-1 bg-gray-100 text-gray-600 py-3 px-4 rounded-lg font-medium cursor-not-allowed flex items-center justify-center space-x-2"
+                            className="flex-1 bg-gray-100 text-gray-600 py-3 px-4 rounded-lg font-medium cursor-not-allowed flex items-center justify-center space-x-2 min-w-[120px]"
                           >
                             <CheckCircle className="h-4 w-4" />
                             <span>Players Rated</span>

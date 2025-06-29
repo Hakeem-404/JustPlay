@@ -343,12 +343,13 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
 
       {/* Error Message */}
       {chatState.error && (
-        <div className="p-4 bg-red-50 border-b border-red-200 flex items-center space-x-2">
+        <div className="p-4 bg-red-50 border-b border-red-200 flex items-center space-x-2" role="alert">
           <AlertCircle className="h-4 w-4 text-red-500" />
           <span className="text-red-700 text-sm">{chatState.error}</span>
           <button
             onClick={() => setChatState(prev => ({ ...prev, error: null }))}
-            className="ml-auto text-red-500 hover:text-red-700"
+            className="ml-auto text-red-500 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+            aria-label="Dismiss error message"
           >
             ×
           </button>
@@ -360,6 +361,9 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
         ref={chatContainerRef}
         className="flex-1 overflow-y-auto p-4 space-y-4"
         style={{ maxHeight: 'calc(100vh - 300px)' }}
+        role="log"
+        aria-live="polite"
+        aria-atomic="false"
       >
         {chatState.loading ? (
           <div className="flex items-center justify-center py-8">
@@ -390,7 +394,7 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
                   <div className={`flex ${isOwn ? 'flex-row-reverse' : 'flex-row'} items-end space-x-2 max-w-[80%]`}>
                     {/* Avatar */}
                     {!isConsecutive && (
-                      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                      <div className="avatar avatar-sm bg-gradient-to-br from-blue-500 to-green-500">
                         {getUserInitials(message.userName)}
                       </div>
                     )}
@@ -436,8 +440,9 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
                           <div className="flex items-center space-x-1 bg-white border border-gray-200 rounded-lg shadow-sm p-1">
                             <button
                               onClick={() => setReplyTo(message)}
-                              className="p-1 hover:bg-gray-100 rounded"
+                              className="p-1 hover:bg-gray-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                               title="Reply"
+                              aria-label="Reply to message"
                             >
                               <Reply className="h-3 w-3 text-gray-500" />
                             </button>
@@ -449,15 +454,17 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
                                     setNewMessage(message.content)
                                     messageInputRef.current?.focus()
                                   }}
-                                  className="p-1 hover:bg-gray-100 rounded"
+                                  className="p-1 hover:bg-gray-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                   title="Edit"
+                                  aria-label="Edit message"
                                 >
                                   <Edit3 className="h-3 w-3 text-gray-500" />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteMessage(message.id)}
-                                  className="p-1 hover:bg-gray-100 rounded"
+                                  className="p-1 hover:bg-gray-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                   title="Delete"
+                                  aria-label="Delete message"
                                 >
                                   <Trash2 className="h-3 w-3 text-red-500" />
                                 </button>
@@ -473,7 +480,8 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
                           {message.reactions.map((reaction, idx) => (
                             <button
                               key={idx}
-                              className="flex items-center space-x-1 bg-gray-100 hover:bg-gray-200 rounded-full px-2 py-1 text-xs"
+                              className="flex items-center space-x-1 bg-gray-100 hover:bg-gray-200 rounded-full px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              aria-label={`${reaction.count} ${reaction.emoji} reactions`}
                             >
                               <span>{reaction.emoji}</span>
                               <span>{reaction.count}</span>
@@ -502,7 +510,8 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
           </div>
           <button
             onClick={() => setReplyTo(null)}
-            className="text-blue-600 hover:text-blue-800"
+            className="text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            aria-label="Cancel reply"
           >
             ×
           </button>
@@ -521,7 +530,8 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
               setEditingMessage(null)
               setNewMessage('')
             }}
-            className="text-yellow-600 hover:text-yellow-800"
+            className="text-yellow-600 hover:text-yellow-800 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+            aria-label="Cancel editing"
           >
             ×
           </button>
@@ -538,10 +548,11 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder={editingMessage ? "Edit your message..." : "Type a message..."}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="form-input resize-none"
               rows={1}
               style={{ minHeight: '40px', maxHeight: '120px' }}
               disabled={sending}
+              aria-label="Message input"
             />
             <div className="absolute bottom-2 right-2 text-xs text-gray-400">
               {newMessage.length}/2000
@@ -550,8 +561,10 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
           
           <button
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             disabled={sending}
+            aria-label="Add emoji"
+            aria-expanded={showEmojiPicker}
           >
             <Smile className="h-5 w-5" />
           </button>
@@ -559,7 +572,8 @@ export default function GameChat({ game, isVisible, onUnreadCountChange }: GameC
           <button
             onClick={handleSendMessage}
             disabled={!newMessage.trim() || sending || newMessage.length > 2000}
-            className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            aria-label={sending ? "Sending message..." : "Send message"}
           >
             {sending ? (
               <Loader2 className="h-5 w-5 animate-spin" />

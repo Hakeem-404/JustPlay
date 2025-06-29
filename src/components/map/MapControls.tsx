@@ -68,7 +68,7 @@ export default function MapControls({
   }
 
   return (
-    <div className="absolute top-4 left-4 right-4 z-[1000] pointer-events-none">
+    <div className="absolute top-4 left-4 right-4 z-[var(--z-fixed)] pointer-events-none">
       <div className="flex flex-col space-y-4">
         {/* Search Bar */}
         <div className="flex space-x-2 pointer-events-auto">
@@ -81,18 +81,20 @@ export default function MapControls({
               onKeyPress={handleKeyPress}
               placeholder="Search for locations..."
               className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              aria-label="Search locations"
             />
           </div>
           <button
             onClick={onSearch}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+            className="btn btn-primary shadow-sm flex items-center justify-center"
+            aria-label="Search"
           >
             <Search className="h-4 w-4" />
           </button>
         </div>
 
         {/* Control Buttons */}
-        <div className="flex space-x-2 pointer-events-auto">
+        <div className="flex flex-wrap gap-2 pointer-events-auto">
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg shadow-sm transition-colors relative ${
@@ -100,11 +102,13 @@ export default function MapControls({
                 ? 'bg-blue-600 text-white' 
                 : 'bg-white text-gray-700 hover:bg-gray-50'
             }`}
+            aria-expanded={showFilters}
+            aria-controls="map-filters-panel"
           >
             <Filter className="h-4 w-4" />
             <span>Filters</span>
             {getActiveFiltersCount() > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium" aria-label={`${getActiveFiltersCount()} active filters`}>
                 {getActiveFiltersCount()}
               </span>
             )}
@@ -114,6 +118,7 @@ export default function MapControls({
             <button
               onClick={onCenterOnUser}
               className="flex items-center space-x-2 bg-white text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+              aria-label="Center map on my location"
             >
               <Target className="h-4 w-4" />
               <span className="hidden sm:inline">My Location</span>
@@ -130,6 +135,8 @@ export default function MapControls({
                     ? 'bg-green-100 text-green-700' 
                     : 'text-gray-600 hover:bg-gray-50'
                 }`}
+                aria-pressed={filters.distance <= 100}
+                aria-label="Show nearby games"
               >
                 Nearby
               </button>
@@ -140,6 +147,8 @@ export default function MapControls({
                     ? 'bg-blue-100 text-blue-700' 
                     : 'text-gray-600 hover:bg-gray-50'
                 }`}
+                aria-pressed={filters.distance > 100}
+                aria-label="Show all games worldwide"
               >
                 All
               </button>
@@ -157,7 +166,7 @@ export default function MapControls({
                 {filters.distance < 999999 && (
                   <button
                     onClick={() => onFiltersChange({ ...filters, distance: 999999 })}
-                    className="ml-2 text-blue-600 hover:text-blue-700 font-medium"
+                    className="ml-2 text-blue-600 hover:text-blue-700 font-medium focus:outline-none focus:underline"
                   >
                     Show all
                   </button>
@@ -169,7 +178,12 @@ export default function MapControls({
 
         {/* Filters Panel */}
         {showFilters && (
-          <div className="bg-white rounded-lg shadow-lg p-4 pointer-events-auto max-h-[70vh] overflow-y-auto">
+          <div 
+            id="map-filters-panel"
+            className="bg-white rounded-lg shadow-lg p-4 pointer-events-auto max-h-[70vh] overflow-y-auto"
+            role="region"
+            aria-label="Map filters"
+          >
             <h3 className="font-semibold text-gray-900 mb-4">Filter Games</h3>
             
             {/* Sports Filter */}
@@ -187,6 +201,7 @@ export default function MapControls({
                         ? 'bg-blue-100 border-blue-300 text-blue-700'
                         : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
                     }`}
+                    aria-pressed={filters.sports.includes(sport)}
                   >
                     {sport}
                   </button>
@@ -195,7 +210,7 @@ export default function MapControls({
               {filters.sports.length > 0 && (
                 <button
                   onClick={() => onFiltersChange({ ...filters, sports: [] })}
-                  className="text-sm text-blue-600 hover:text-blue-700 mt-2"
+                  className="text-sm text-blue-600 hover:text-blue-700 mt-2 focus:outline-none focus:underline"
                 >
                   Clear all sports
                 </button>
@@ -204,17 +219,19 @@ export default function MapControls({
 
             {/* Distance Filter */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="distance-filter" className="block text-sm font-medium text-gray-700 mb-2">
                 Distance from me
                 {!userLocation && (
                   <span className="text-xs text-gray-500 ml-1">(location required)</span>
                 )}
               </label>
               <select
+                id="distance-filter"
                 value={filters.distance}
                 onChange={(e) => onFiltersChange({ ...filters, distance: Number(e.target.value) })}
                 disabled={!userLocation}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                className="form-input"
+                aria-describedby="distance-help"
               >
                 {DISTANCE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -223,7 +240,7 @@ export default function MapControls({
                 ))}
               </select>
               {!userLocation && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p id="distance-help" className="text-xs text-gray-500 mt-1">
                   Enable location access to filter by distance
                 </p>
               )}
@@ -231,13 +248,14 @@ export default function MapControls({
 
             {/* Date Filter */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="date-filter" className="block text-sm font-medium text-gray-700 mb-2">
                 When
               </label>
               <select
+                id="date-filter"
                 value={filters.dateRange}
                 onChange={(e) => onFiltersChange({ ...filters, dateRange: e.target.value as any })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="form-input"
               >
                 <option value="all">All upcoming games</option>
                 <option value="today">Today</option>
@@ -248,13 +266,14 @@ export default function MapControls({
 
             {/* Skill Level Filter */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="skill-filter" className="block text-sm font-medium text-gray-700 mb-2">
                 Skill Level
               </label>
               <select
+                id="skill-filter"
                 value={filters.skillLevel}
                 onChange={(e) => onFiltersChange({ ...filters, skillLevel: e.target.value as any })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="form-input"
               >
                 <option value="all">All levels</option>
                 <option value="beginner">Beginner</option>
@@ -272,7 +291,7 @@ export default function MapControls({
                 dateRange: 'all',
                 skillLevel: 'all'
               })}
-              className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors"
+              className="w-full btn btn-secondary"
             >
               Reset All Filters
             </button>

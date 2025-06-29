@@ -41,6 +41,7 @@ export default function NotificationCenter({ className = '' }: NotificationCente
   const [markingAllRead, setMarkingAllRead] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const notificationRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
 
   // Close notification center when clicking outside
   useEffect(() => {
@@ -56,6 +57,24 @@ export default function NotificationCenter({ className = '' }: NotificationCente
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isOpen])
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        setIsOpen(false)
+        buttonRef.current?.focus()
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown)
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
     }
   }, [isOpen])
 
@@ -121,13 +140,20 @@ export default function NotificationCenter({ className = '' }: NotificationCente
     <div className={`relative ${className}`} ref={notificationRef}>
       {/* Notification Bell */}
       <button
+        ref={buttonRef}
         onClick={handleToggle}
-        className="p-2 text-gray-400 hover:text-gray-600 transition-colors relative"
+        className="p-2 text-gray-400 hover:text-gray-600 transition-colors relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         aria-label={`Notifications ${unreadCount > 0 ? `(${unreadCount} unread)` : ''}`}
+        aria-haspopup="true"
+        aria-expanded={isOpen}
+        aria-controls="notification-panel"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-[18px] flex items-center justify-center font-medium">
+          <span 
+            className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-[18px] flex items-center justify-center font-medium"
+            aria-hidden="true"
+          >
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -135,16 +161,22 @@ export default function NotificationCenter({ className = '' }: NotificationCente
 
       {/* Notification Panel */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-[10001] overflow-hidden">
+        <div 
+          id="notification-panel"
+          className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-[var(--z-dropdown)] overflow-hidden"
+          role="dialog"
+          aria-label="Notifications"
+        >
           {/* Header */}
           <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
             <h3 className="font-semibold text-gray-900">Notifications</h3>
             <div className="flex items-center space-x-2">
               <button
                 onClick={handleRefresh}
-                className="p-1 text-gray-500 hover:text-gray-700 transition-colors"
+                className="p-1 text-gray-500 hover:text-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
                 title="Refresh notifications"
                 disabled={refreshing}
+                aria-label="Refresh notifications"
               >
                 {refreshing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -156,9 +188,10 @@ export default function NotificationCenter({ className = '' }: NotificationCente
               </button>
               <button
                 onClick={handleMarkAllAsRead}
-                className="p-1 text-gray-500 hover:text-gray-700 transition-colors"
+                className="p-1 text-gray-500 hover:text-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
                 title="Mark all as read"
                 disabled={markingAllRead || unreadCount === 0}
+                aria-label="Mark all notifications as read"
               >
                 {markingAllRead ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -168,15 +201,18 @@ export default function NotificationCenter({ className = '' }: NotificationCente
               </button>
               <button
                 onClick={() => setShowPreferences(true)}
-                className="p-1 text-gray-500 hover:text-gray-700 transition-colors"
+                className="p-1 text-gray-500 hover:text-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
                 title="Notification settings"
+                aria-label="Open notification settings"
+                aria-haspopup="dialog"
               >
                 <Settings className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1 text-gray-500 hover:text-gray-700 transition-colors"
+                className="p-1 text-gray-500 hover:text-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
                 title="Close"
+                aria-label="Close notification panel"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -184,7 +220,13 @@ export default function NotificationCenter({ className = '' }: NotificationCente
           </div>
 
           {/* Notification List */}
-          <div className="max-h-[70vh] overflow-y-auto">
+          <div 
+            className="max-h-[70vh] overflow-y-auto"
+            role="log"
+            aria-live="polite"
+            aria-atomic="false"
+            aria-relevant="additions"
+          >
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
@@ -211,7 +253,8 @@ export default function NotificationCenter({ className = '' }: NotificationCente
                   <button
                     onClick={handleLoadMore}
                     disabled={loadingMore}
-                    className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 focus:outline-none focus:underline"
+                    aria-label={loadingMore ? "Loading more notifications" : "Load more notifications"}
                   >
                     {loadingMore ? (
                       <div className="flex items-center justify-center">

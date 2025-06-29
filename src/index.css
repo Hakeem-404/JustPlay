@@ -135,3 +135,110 @@ body.modal-open {
   width: 100%;
   height: 100%;
 }
+
+/* Z-index hierarchy */
+:root {
+  --z-base: 1;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-fixed: 300;
+  --z-modal-backdrop: 400;
+  --z-modal: 500;
+  --z-popover: 600;
+  --z-tooltip: 700;
+  --z-toast: 800;
+  --z-notification: 900;
+  --z-badge: 1000;
+}
+
+/* Consistent modal styling */
+.modal-overlay {
+  @apply fixed inset-0 bg-black bg-opacity-50 z-[var(--z-modal-backdrop)];
+}
+
+.modal-content {
+  @apply bg-white rounded-2xl shadow-xl z-[var(--z-modal)] max-h-[90vh] overflow-hidden;
+}
+
+/* Consistent card styling */
+.card {
+  @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow;
+}
+
+/* Consistent button styling */
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-colors;
+}
+
+.btn-primary {
+  @apply bg-blue-600 text-white hover:bg-blue-700;
+}
+
+.btn-secondary {
+  @apply bg-gray-100 text-gray-700 hover:bg-gray-200;
+}
+
+.btn-danger {
+  @apply bg-red-600 text-white hover:bg-red-700;
+}
+
+/* Consistent form element styling */
+.form-input {
+  @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-gray-700 mb-2;
+}
+
+/* Consistent badge styling */
+.badge {
+  @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium;
+}
+
+.badge-blue {
+  @apply bg-blue-100 text-blue-700;
+}
+
+.badge-green {
+  @apply bg-green-100 text-green-700;
+}
+
+.badge-red {
+  @apply bg-red-100 text-red-700;
+}
+
+.badge-yellow {
+  @apply bg-yellow-100 text-yellow-700;
+}
+
+/* Consistent avatar styling */
+.avatar {
+  @apply flex items-center justify-center text-white font-bold rounded-full;
+}
+
+.avatar-sm {
+  @apply w-8 h-8 text-sm;
+}
+
+.avatar-md {
+  @apply w-10 h-10 text-base;
+}
+
+.avatar-lg {
+  @apply w-16 h-16 text-xl;
+}
+
+/* Consistent section styling */
+.section {
+  @apply mb-8;
+}
+
+.section-title {
+  @apply text-xl font-bold text-gray-900 mb-4 flex items-center;
+}
+
+/* Consistent list styling */
+.list-item {
+  @apply flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors;
+}
