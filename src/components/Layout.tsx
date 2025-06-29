@@ -4,7 +4,7 @@ import {
   Play, 
   Menu, 
   X, 
-  User, 
+  User,
   LogOut, 
   Settings, 
   Users, 
