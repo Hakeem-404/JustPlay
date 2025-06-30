@@ -184,11 +184,20 @@ export const friendsService = {
 
   async sendPrivateMessage(recipientId: string, content: string): Promise<{ data: PrivateMessage | null; error: string | null }> {
     try {
-      console.log('💬 Sending private message to:', recipientId)
+      console.log('💬 Sending private message to:', recipientId, 'Content:', content)
       
+      // Validate input
+      if (!content.trim()) {
+        return { data: null, error: 'Message content cannot be empty' }
+      }
+      
+      if (content.length > 2000) {
+        return { data: null, error: 'Message too long (max 2000 characters)' }
+      }
+
       const { data, error } = await supabase.rpc('send_private_message', {
         recipient_id_param: recipientId,
-        content_param: content
+        content_param: content.trim()
       })
 
       if (error) {
@@ -212,7 +221,7 @@ export const friendsService = {
         createdAt: data.message.created_at
       }
 
-      console.log('✅ Private message sent successfully')
+      console.log('✅ Private message sent successfully:', transformedMessage)
       return { data: transformedMessage, error: null }
     } catch (err) {
       console.error('💥 Unexpected error sending private message:', err)
@@ -225,7 +234,12 @@ export const friendsService = {
       console.log('💬 Loading conversations')
       
       const currentUser = (await supabase.auth.getUser()).data.user
-      if (!currentUser) return { data: null, error: 'User not authenticated' }
+      if (!currentUser) {
+        console.error('❌ User not authenticated')
+        return { data: null, error: 'User not authenticated' }
+      }
+
+      console.log('🔍 Current user ID:', currentUser.id)
 
       const { data, error } = await supabase
         .from('conversations')
@@ -244,20 +258,28 @@ export const friendsService = {
         return { data: null, error: error.message }
       }
 
+      console.log('📋 Raw conversations data:', data)
+
       // Get other participant details and last messages
       const conversationsWithDetails = await Promise.all(
         (data || []).map(async (conv: any) => {
           const otherParticipantId = conv.participant_1 === currentUser.id ? conv.participant_2 : conv.participant_1
 
+          console.log('👤 Getting details for participant:', otherParticipantId)
+
           // Get other participant profile
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('name, avatar_url')
             .eq('id', otherParticipantId)
             .single()
 
+          if (profileError) {
+            console.error('❌ Error loading profile for user:', otherParticipantId, profileError)
+          }
+
           // Get last message
-          const { data: lastMessage } = await supabase
+          const { data: lastMessage, error: messageError } = await supabase
             .from('private_messages')
             .select('content, sender_id, created_at')
             .eq('conversation_id', conv.id)
@@ -265,13 +287,21 @@ export const friendsService = {
             .limit(1)
             .single()
 
+          if (messageError && messageError.code !== 'PGRST116') {
+            console.error('❌ Error loading last message for conversation:', conv.id, messageError)
+          }
+
           // Get unread count
-          const { count: unreadCount } = await supabase
+          const { count: unreadCount, error: countError } = await supabase
             .from('private_messages')
             .select('*', { count: 'exact', head: true })
             .eq('conversation_id', conv.id)
             .eq('recipient_id', currentUser.id)
             .is('read_at', null)
+
+          if (countError) {
+            console.error('❌ Error counting unread messages for conversation:', conv.id, countError)
+          }
 
           return {
             id: conv.id,
@@ -304,7 +334,7 @@ export const friendsService = {
 
   async getConversationMessages(conversationId: string, limit = 50, offset = 0): Promise<{ data: PrivateMessage[] | null; error: string | null }> {
     try {
-      console.log('💬 Loading conversation messages:', conversationId)
+      console.log('💬 Loading conversation messages:', conversationId, { limit, offset })
       
       const { data, error } = await supabase.rpc('get_conversation_messages', {
         conversation_id_param: conversationId,
@@ -368,6 +398,11 @@ export const friendsService = {
   subscribeToPrivateMessages(conversationId: string, callback: (message: PrivateMessage) => void) {
     console.log('📡 Setting up private message subscription for conversation:', conversationId)
     
+    if (!conversationId) {
+      console.error('❌ No conversation ID provided for subscription')
+      return null
+    }
+    
     const subscription = supabase
       .channel(`private_messages_${conversationId}`)
       .on(
@@ -378,16 +413,20 @@ export const friendsService = {
           table: 'private_messages',
           filter: `conversation_id=eq.${conversationId}`
         },
-        async (payload) => {
+        async (payload: any) => {
           console.log('🔔 New private message received:', payload)
           
           try {
             // Get sender profile
-            const { data: profile } = await supabase
+            const { data: profile, error: profileError } = await supabase
               .from('profiles')
               .select('name, avatar_url')
               .eq('id', payload.new.sender_id)
               .single()
+
+            if (profileError) {
+              console.error('❌ Error loading sender profile:', profileError)
+            }
 
             const newMessage: PrivateMessage = {
               id: payload.new.id,
@@ -401,14 +440,18 @@ export const friendsService = {
               createdAt: payload.new.created_at
             }
 
+            console.log('📨 Processed new message:', newMessage)
             callback(newMessage)
           } catch (err) {
             console.error('💥 Error processing real-time private message:', err)
           }
         }
       )
-      .subscribe((status) => {
+      .subscribe((status: any) => {
         console.log('📡 Private message subscription status:', status)
+        if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Private message subscription error')
+        }
       })
 
     return subscription
@@ -432,8 +475,23 @@ export const friendsService = {
           callback()
         }
       )
-      .subscribe((status) => {
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'conversations'
+        },
+        () => {
+          console.log('🔔 Conversation list update received')
+          callback()
+        }
+      )
+      .subscribe((status: any) => {
         console.log('📡 Conversations subscription status:', status)
+        if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Conversations subscription error')
+        }
       })
 
     return subscription
