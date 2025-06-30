@@ -15,6 +15,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { friendsService } from '../lib/friendsService'
 import { Conversation, PrivateMessage } from '../types/friends'
+import { supabase } from '../lib/supabase'
 
 export default function Messages() {
   const { user } = useAuth()
@@ -33,6 +34,7 @@ export default function Messages() {
   const [sending, setSending] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set())
+  const [friends, setFriends] = useState<any[]>([])
 
   // Real-time subscription refs
   const conversationSubscriptionRef = useRef<any>(null)
@@ -42,6 +44,7 @@ export default function Messages() {
     if (user) {
       loadConversations()
       setupConversationSubscription()
+      loadFriends()
     }
 
     return () => {
@@ -64,9 +67,29 @@ export default function Messages() {
       
       if (existingConversation) {
         selectConversation(existingConversation)
+      } else if (friends.length > 0) {
+        // If no conversation exists, but friend is in friends list, create a placeholder
+        const friend = friends.find(f => f.id === targetUserId)
+        if (friend) {
+          setSelectedConversation({
+            id: '', // No conversation ID yet
+            participant1: user.id,
+            participant2: friend.id,
+            lastMessageAt: '',
+            createdAt: '',
+            otherParticipant: {
+              id: friend.id,
+              name: friend.name,
+              avatarUrl: friend.avatarUrl
+            },
+            lastMessage: undefined,
+            unreadCount: 0
+          })
+          setMessages([])
+        }
       }
     }
-  }, [targetUserId, conversations])
+  }, [targetUserId, conversations, friends, user])
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -130,47 +153,62 @@ export default function Messages() {
   const loadConversations = async () => {
     setLoading(true)
     try {
+      console.log('🔄 Loading conversations...')
       const { data, error } = await friendsService.getConversations()
       
       if (error) {
-        console.error('Error loading conversations:', error)
+        console.error('❌ Error loading conversations:', error)
+        // Show error to user
+        alert(`Failed to load conversations: ${error}`)
       } else {
+        console.log('✅ Conversations loaded:', data?.length || 0)
         setConversations(data || [])
       }
     } catch (err) {
-      console.error('Error loading conversations:', err)
+      console.error('💥 Unexpected error loading conversations:', err)
+      alert('An unexpected error occurred while loading conversations')
     } finally {
       setLoading(false)
     }
   }
 
   const selectConversation = async (conversation: Conversation) => {
+    console.log('💬 Selecting conversation:', conversation.id, 'with:', conversation.otherParticipant.name)
     setSelectedConversation(conversation)
     setMessages([])
-    await loadMessages(conversation.id)
-    setupMessageSubscription(conversation.id)
     
-    // Mark messages as read
-    await friendsService.markMessagesAsRead(conversation.id)
-    
-    // Focus message input
-    setTimeout(() => {
-      messageInputRef.current?.focus()
-    }, 100)
+    try {
+      await loadMessages(conversation.id)
+      setupMessageSubscription(conversation.id)
+      
+      // Mark messages as read
+      await friendsService.markMessagesAsRead(conversation.id)
+      
+      // Focus message input
+      setTimeout(() => {
+        messageInputRef.current?.focus()
+      }, 100)
+    } catch (err) {
+      console.error('💥 Error selecting conversation:', err)
+    }
   }
 
   const loadMessages = async (conversationId: string) => {
     setMessagesLoading(true)
     try {
+      console.log('🔄 Loading messages for conversation:', conversationId)
       const { data, error } = await friendsService.getConversationMessages(conversationId)
       
       if (error) {
-        console.error('Error loading messages:', error)
+        console.error('❌ Error loading messages:', error)
+        alert(`Failed to load messages: ${error}`)
       } else {
+        console.log('✅ Messages loaded:', data?.length || 0)
         setMessages(data || [])
       }
     } catch (err) {
-      console.error('Error loading messages:', err)
+      console.error('💥 Unexpected error loading messages:', err)
+      alert('An unexpected error occurred while loading messages')
     } finally {
       setMessagesLoading(false)
     }
@@ -179,6 +217,7 @@ export default function Messages() {
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || sending) return
 
+    console.log('💬 Sending message to:', selectedConversation.otherParticipant.name)
     setSending(true)
     const messageContent = newMessage.trim()
     
@@ -204,11 +243,13 @@ export default function Messages() {
       )
 
       if (error) {
-        console.error('Error sending message:', error)
+        console.error('❌ Error sending message:', error)
         // Remove optimistic message on error
         setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id))
         setNewMessage(messageContent) // Restore message content
+        alert(`Failed to send message: ${error}`)
       } else if (data) {
+        console.log('✅ Message sent successfully:', data)
         // Replace optimistic message with real message
         setMessages(prev => 
           prev.map(msg => 
@@ -220,9 +261,10 @@ export default function Messages() {
         loadConversations()
       }
     } catch (err) {
-      console.error('Error sending message:', err)
+      console.error('💥 Unexpected error sending message:', err)
       setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id))
       setNewMessage(messageContent)
+      alert('An unexpected error occurred while sending the message')
     } finally {
       setSending(false)
     }
@@ -267,6 +309,17 @@ export default function Messages() {
   const filteredConversations = conversations.filter(conv =>
     conv.otherParticipant.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  const loadFriends = async () => {
+    try {
+      const { data, error } = await friendsService.getFriendsList()
+      if (!error && data) {
+        setFriends(data)
+      }
+    } catch (err) {
+      console.error('Error loading friends:', err)
+    }
+  }
 
   if (!user) {
     return (
