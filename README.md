@@ -1,5 +1,33 @@
-JustPlay is a social platform for discovering, creating, and joining local games.  
-It includes player profiles, friend connections, messaging, notifications, and an admin area for moderation.
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Supabase](https://img.shields.io/badge/Supabase-Backend-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
+
+JustPlay is a social app for discovering, creating, and joining local games.
+It combines player profiles, social features, and location-based discovery to help people find the right game and teammates faster.
+
+### Why JustPlay
+
+- Discover nearby games with map-based browsing
+- Create and manage your own games in a few steps
+- Build your network through profiles, friends, and direct messages
+- Stay up to date with notifications and preference controls
+- Keep the platform healthy through built-in moderation tools
+
+### Screenshots (Recruiter/Demo View)
+
+> Replace these placeholders with real product screenshots or short GIF captures.
+
+![Dashboard](docs/screenshots/dashboard.png)
+![Create Game](docs/screenshots/create-game.png)
+![Map Discovery](docs/screenshots/map-discovery.png)
+
+### Quick Demo Talking Points
+
+- **Problem:** Local players struggle to find reliable, nearby games.
+- **Solution:** A social + map-first platform for pickup game coordination.
+- **Outcome:** Faster game discovery, clearer communication, and safer communities.
 
 ## Tech Stack
 
@@ -126,3 +154,26 @@ Admin routes:
 
 The app includes service worker setup and offline assets (`public/offline.html`, PWA icons).  
 Installability and caching behavior are configured through Vite PWA/Workbox.
+
+## Contributing
+
+Contributions are welcome and appreciated.
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-change`)
+3. Commit with clear messages
+4. Open a pull request with context, screenshots (if UI), and test notes
+
+Before opening a PR:
+
+- Run `npm run lint`
+- Verify the app runs locally with `npm run dev`
+- Keep changes focused and easy to review
+
+## Roadmap
+
+- [ ] Add complete screenshot gallery and short product demo GIF
+- [ ] Improve onboarding flow and first-time user guidance
+- [ ] Add richer game filters (skill level, distance, time windows)
+- [ ] Expand moderation and reporting workflows
+- [ ] Introduce automated tests for critical user flows
