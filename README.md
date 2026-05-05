@@ -17,8 +17,6 @@ It combines player profiles, social features, and location-based discovery to he
 
 ### Screenshots (Recruiter/Demo View)
 
-> Replace these placeholders with real product screenshots or short GIF captures.
-
 ![Dashboard](docs/screenshots/dashboard.png)
 ![Create Game](docs/screenshots/create-game.png)
 ![Map Discovery](docs/screenshots/map-discovery.png)
