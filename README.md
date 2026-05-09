@@ -15,12 +15,6 @@ It combines player profiles, social features, and location-based discovery to he
 - Stay up to date with notifications and preference controls
 - Keep the platform healthy through built-in moderation tools
 
-### Screenshots (Recruiter/Demo View)
-
-![Dashboard](docs/screenshots/dashboard.png)
-![Create Game](docs/screenshots/create-game.png)
-![Map Discovery](docs/screenshots/map-discovery.png)
-
 ### Quick Demo Talking Points
 
 - **Problem:** Local players struggle to find reliable, nearby games.
